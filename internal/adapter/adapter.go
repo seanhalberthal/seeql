@@ -1,0 +1,136 @@
+package adapter
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strings"
+	"time"
+
+	"github.com/sadopc/gotermsql/internal/schema"
+)
+
+var (
+	ErrNoBidirectional = errors.New("adapter does not support bidirectional scrolling")
+	ErrNotConnected    = errors.New("not connected to database")
+	ErrCancelled       = errors.New("query cancelled")
+)
+
+// Adapter creates database connections.
+type Adapter interface {
+	Connect(ctx context.Context, dsn string) (Connection, error)
+	Name() string
+	DefaultPort() int
+}
+
+// Connection represents an active database connection.
+type Connection interface {
+	// Introspection
+	Databases(ctx context.Context) ([]schema.Database, error)
+	Tables(ctx context.Context, db, schemaName string) ([]schema.Table, error)
+	Columns(ctx context.Context, db, schemaName, table string) ([]schema.Column, error)
+	Indexes(ctx context.Context, db, schemaName, table string) ([]schema.Index, error)
+	ForeignKeys(ctx context.Context, db, schemaName, table string) ([]schema.ForeignKey, error)
+
+	// Query execution
+	Execute(ctx context.Context, query string) (*QueryResult, error)
+	Cancel() error
+
+	// Streaming for large results
+	ExecuteStreaming(ctx context.Context, query string, pageSize int) (RowIterator, error)
+
+	// Completions
+	Completions(ctx context.Context) ([]CompletionItem, error)
+
+	// Lifecycle
+	Ping(ctx context.Context) error
+	Close() error
+
+	// Info
+	DatabaseName() string
+	AdapterName() string
+}
+
+// BatchIntrospector is an optional interface that connections can implement to
+// load all columns, indexes, and foreign keys for a schema in a single query
+// each, avoiding the N+1 per-table pattern.
+type BatchIntrospector interface {
+	AllColumns(ctx context.Context, db, schemaName string) (map[string][]schema.Column, error)
+	AllIndexes(ctx context.Context, db, schemaName string) (map[string][]schema.Index, error)
+	AllForeignKeys(ctx context.Context, db, schemaName string) (map[string][]schema.ForeignKey, error)
+}
+
+// RowIterator provides paginated access to query results.
+type RowIterator interface {
+	FetchNext(ctx context.Context) ([][]string, error)
+	FetchPrev(ctx context.Context) ([][]string, error)
+	Columns() []ColumnMeta
+	TotalRows() int64 // -1 if unknown
+	Close() error
+}
+
+// QueryResult holds the result of a query execution.
+type QueryResult struct {
+	Columns  []ColumnMeta
+	Rows     [][]string
+	RowCount int64 // -1 if unknown
+	Duration time.Duration
+	IsSelect bool
+	Message  string
+}
+
+// ColumnMeta holds metadata about a result column.
+type ColumnMeta struct {
+	Name     string
+	Type     string
+	Nullable bool
+}
+
+// CompletionItem is a schema-aware autocomplete candidate.
+type CompletionItem struct {
+	Label  string
+	Kind   CompletionKind
+	Detail string
+}
+
+// CompletionKind categorizes autocomplete items.
+type CompletionKind int
+
+const (
+	CompletionTable CompletionKind = iota
+	CompletionColumn
+	CompletionKeyword
+	CompletionFunction
+	CompletionSchema
+	CompletionDatabase
+	CompletionView
+)
+
+// SentinelEOF returns true if err is io.EOF.
+func SentinelEOF(err error) bool {
+	return errors.Is(err, io.EOF)
+}
+
+// IsSelectQuery returns true if the query is a SELECT-like statement that
+// returns rows (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE, PRAGMA, etc.).
+func IsSelectQuery(query string) bool {
+	trimmed := strings.TrimSpace(strings.ToUpper(query))
+	for _, p := range []string{
+		"SELECT ", "WITH ", "EXPLAIN ", "SHOW ", "DESCRIBE ",
+		"DESC ", "PRAGMA ", "TABLE ", "VALUES ", "FROM ",
+		"SUMMARIZE ", "PIVOT ", "UNPIVOT ",
+	} {
+		if strings.HasPrefix(trimmed, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// Registry holds registered adapters by name.
+var Registry = map[string]Adapter{}
+
+// Register adds an adapter to the global registry.
+func Register(a Adapter) {
+	Registry[a.Name()] = a
+}
