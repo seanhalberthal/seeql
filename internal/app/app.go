@@ -549,7 +549,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 	switch {
-	case msg.String() == "ctrl+q":
+	case msg.String() == "ctrl+q" || msg.String() == "q":
 		m.quitting = true
 		if m.cancelFunc != nil {
 			m.cancelFunc()
@@ -594,7 +594,7 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 	case msg.String() == "f2":
 		return func() tea.Msg { return ToggleKeyModeMsg{} }
 
-	case msg.String() == "ctrl+b":
+	case msg.String() == "ctrl+s":
 		m.showSidebar = !m.showSidebar
 		m.updateLayout()
 		return nil
@@ -628,7 +628,7 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 	case msg.String() == "ctrl+t":
 		return func() tea.Msg { return NewTabMsg{} }
 
-	case msg.String() == "ctrl+w":
+	case msg.String() == "X":
 		tabID := m.tabs.ActiveID()
 		return func() tea.Msg { return CloseTabMsg{TabID: tabID} }
 
@@ -1019,25 +1019,10 @@ func (m *Model) connect(adapterName, dsn string) tea.Cmd {
 }
 
 func (m *Model) renderHelpScreen(th *theme.Theme) string {
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#569CD6")).
-		MarginBottom(1)
-
-	sectionStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#DCDCAA")).
-		MarginTop(1)
-
-	keyStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#CE9178"))
-
-	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#D4D4D4"))
-
-	mutedStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6A9955"))
+	titleStyle := th.DialogTitle.MarginBottom(1)
+	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3")).MarginTop(1)
+	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("2"))
+	descStyle := lipgloss.NewStyle()
 
 	line := func(key, desc string) string {
 		return fmt.Sprintf("  %s  %s", keyStyle.Render(fmt.Sprintf("%-16s", key)), descStyle.Render(desc))
@@ -1047,64 +1032,63 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	b.WriteString(titleStyle.Render("  seeql - Keyboard Shortcuts"))
 	b.WriteString("\n")
 
-	b.WriteString(sectionStyle.Render("  Query"))
+	b.WriteString(sectionStyle.Render("  Global"))
 	b.WriteString("\n")
-	b.WriteString(line("F5 / Ctrl+G", "Execute query"))
+	b.WriteString(line("Tab", "Cycle focus: sidebar / results"))
+	b.WriteString("\n")
+	b.WriteString(line("e", "Open query editor"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+S", "Toggle sidebar"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+O", "Connection manager"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+R", "Refresh schema"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+E", "Export results to CSV"))
+	b.WriteString("\n")
+	b.WriteString(line("?", "This help screen"))
+	b.WriteString("\n")
+	b.WriteString(line("q / Ctrl+Q", "Quit"))
+	b.WriteString("\n")
+
+	b.WriteString(sectionStyle.Render("  Editor (floating)"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+Enter / F5", "Execute query"))
 	b.WriteString("\n")
 	b.WriteString(line("Ctrl+C", "Cancel running query"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+Space", "Trigger autocomplete"))
+	b.WriteString(line("Ctrl+H", "Query history"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+E", "Export results"))
+	b.WriteString(line("Esc", "Close editor"))
 	b.WriteString("\n")
 
-	b.WriteString(sectionStyle.Render("  Navigation"))
+	b.WriteString(sectionStyle.Render("  Sidebar"))
 	b.WriteString("\n")
-	b.WriteString(line("Shift+Tab/Ctrl+J", "Switch pane"))
+	b.WriteString(line("j / k", "Navigate up/down"))
 	b.WriteString("\n")
-	b.WriteString(line("Alt+1 / 2 / 3", "Jump to sidebar / editor / results"))
+	b.WriteString(line("l / Enter", "Expand node"))
+	b.WriteString("\n")
+	b.WriteString(line("h", "Collapse node"))
+	b.WriteString("\n")
+
+	b.WriteString(sectionStyle.Render("  Results"))
+	b.WriteString("\n")
+	b.WriteString(line("j / k", "Navigate rows"))
+	b.WriteString("\n")
+	b.WriteString(line("h / l", "Scroll columns"))
 	b.WriteString("\n")
 
 	b.WriteString(sectionStyle.Render("  Tabs"))
 	b.WriteString("\n")
 	b.WriteString(line("Ctrl+T", "New tab"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+W", "Close tab"))
+	b.WriteString(line("X", "Close tab"))
 	b.WriteString("\n")
 	b.WriteString(line("Ctrl+] / Ctrl+[", "Next / previous tab"))
 	b.WriteString("\n")
 
-	b.WriteString(sectionStyle.Render("  Application"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+O", "Connection manager"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+B", "Toggle sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+R", "Refresh schema"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+H", "Query history"))
-	b.WriteString("\n")
-	b.WriteString(line("F2", "Toggle vim / standard mode"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+Q", "Quit"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Resize Panes"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+Arrow keys", "Resize sidebar / editor split"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("Enter / Right", "Expand node / open table"))
-	b.WriteString("\n")
-	b.WriteString(line("Left", "Collapse node"))
-	b.WriteString("\n")
-	b.WriteString(line("Up / Down", "Navigate"))
-	b.WriteString("\n")
-
-	b.WriteString("\n")
-	b.WriteString(mutedStyle.Render("  Press ? / F1 / Esc to close"))
+	b.WriteString(th.MutedText.Render("  Press ? / F1 / Esc to close"))
 
 	return th.DialogBorder.Render(b.String())
 }
