@@ -107,7 +107,7 @@ func (l *Logger) rotate() {
 // SanitizeDSN strips credentials from a DSN string.
 func SanitizeDSN(dsn string) string {
 	// URL-style DSNs: postgres://user:pass@host → postgres://***@host
-	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://", "duckdb://"} {
+	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://"} {
 		if strings.HasPrefix(strings.ToLower(dsn), prefix) {
 			u, err := url.Parse(dsn)
 			if err != nil {

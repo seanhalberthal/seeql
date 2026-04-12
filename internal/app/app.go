@@ -1277,7 +1277,7 @@ func (m *Model) exportResults() tea.Cmd {
 // sanitizeError strips credentials from error messages that may contain DSN URLs.
 func sanitizeError(msg string) string {
 	// Match postgres://user:pass@, mysql://user:pass@, etc.
-	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://", "duckdb://"} {
+	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://"} {
 		for {
 			idx := strings.Index(msg, prefix)
 			if idx < 0 {

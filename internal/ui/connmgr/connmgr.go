@@ -81,7 +81,7 @@ func (m *Model) initForm() {
 	labels := []string{"Name", "Adapter", "Host", "Port", "User", "Password", "Database", "File", "DSN"}
 	placeholders := []string{
 		"my-database",
-		"postgres|mysql|sqlite|duckdb",
+		"postgres|mysql|sqlite",
 		"localhost",
 		"5432",
 		"",
@@ -433,7 +433,7 @@ func (m *Model) SetConnections(conns []config.SavedConnection) {
 
 // sanitizeError strips credentials from error messages that may contain DSN URLs.
 func sanitizeError(msg string) string {
-	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://", "duckdb://"} {
+	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://"} {
 		for {
 			idx := strings.Index(msg, prefix)
 			if idx < 0 {

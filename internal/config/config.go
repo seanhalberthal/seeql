@@ -161,16 +161,16 @@ func (c *Config) SaveDefault() error {
 
 // BuildDSN constructs a connection string from the individual fields of a
 // SavedConnection. If DSN is already set, it is returned as-is. For
-// file-based adapters (sqlite, duckdb) it returns the File field. For
-// postgres it builds a proper postgres:// URL with escaped credentials. For
-// mysql it builds the go-sql-driver format with escaped password.
+// file-based adapters (sqlite) it returns the File field. For postgres it
+// builds a proper postgres:// URL with escaped credentials. For mysql it
+// builds the go-sql-driver format with escaped password.
 func (sc *SavedConnection) BuildDSN() string {
 	if sc.DSN != "" {
 		return sc.DSN
 	}
 
 	adapterName := strings.ToLower(sc.Adapter)
-	if adapterName == "sqlite" || adapterName == "duckdb" {
+	if adapterName == "sqlite" {
 		return sc.File
 	}
 
@@ -246,7 +246,7 @@ func (sc *SavedConnection) BuildDSN() string {
 // "adapter://file" for file-based adapters.
 func (sc *SavedConnection) DisplayString() string {
 	adapter := strings.ToLower(sc.Adapter)
-	if adapter == "sqlite" || adapter == "duckdb" {
+	if adapter == "sqlite" {
 		file := sc.File
 		if file == "" {
 			file = sc.DSN

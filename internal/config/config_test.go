@@ -192,11 +192,6 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 				Password: "p@ss!",
 				Database: "maindb",
 			},
-			{
-				Name:    "local-duck",
-				Adapter: "duckdb",
-				File:    "/data/analytics.duckdb",
-			},
 		},
 	}
 
@@ -382,22 +377,6 @@ func TestBuildDSN(t *testing.T) {
 			want: "/tmp/test.db",
 		},
 		{
-			name: "duckdb file path",
-			conn: SavedConnection{
-				Adapter: "duckdb",
-				File:    "/data/analytics.duckdb",
-			},
-			want: "/data/analytics.duckdb",
-		},
-		{
-			name: "duckdb uppercase adapter",
-			conn: SavedConnection{
-				Adapter: "DuckDB",
-				File:    "/data/test.duckdb",
-			},
-			want: "/data/test.duckdb",
-		},
-		{
 			name: "postgres no port no database",
 			conn: SavedConnection{
 				Adapter: "postgres",
@@ -490,14 +469,6 @@ func TestDisplayString(t *testing.T) {
 				DSN:     "/tmp/fallback.db",
 			},
 			want: "sqlite:///tmp/fallback.db",
-		},
-		{
-			name: "duckdb with file",
-			conn: SavedConnection{
-				Adapter: "duckdb",
-				File:    "/data/analytics.duckdb",
-			},
-			want: "duckdb:///data/analytics.duckdb",
 		},
 		{
 			name: "sqlite empty file and DSN",
