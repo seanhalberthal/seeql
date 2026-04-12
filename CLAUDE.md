@@ -5,8 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test Commands
 
 ```bash
-make build              # CGO_ENABLED=0, pure Go (no DuckDB)
-make build-full         # CGO_ENABLED=1 -tags duckdb (requires C compiler)
+make build              # CGO_ENABLED=0, pure Go
 make build-all          # Cross-compile all release targets (linux/darwin/windows)
 make test               # go test ./...
 make test-race          # go test -race ./...
@@ -14,7 +13,7 @@ make vet                # go vet ./...
 make fmt                # gofmt + goimports
 make lint               # golangci-lint run ./...
 make tidy               # go mod tidy
-make run ARGS="--adapter sqlite --file demo.db"
+make run ARGS="./demo.db"
 ```
 
 Run a single test:
@@ -22,14 +21,14 @@ Run a single test:
 go test ./internal/completion/ -run TestFuzzyMatch
 ```
 
-PostgreSQL integration tests require a running instance and `gotermsql_test` database:
+PostgreSQL integration tests require a running instance and `seeql_test` database:
 ```bash
 go test ./internal/adapter/postgres/ -run TestIntegration -v
-GOTERMSQL_PG_DSN="postgres://user:pass@host/db" go test ./internal/adapter/postgres/ -run TestIntegration
+SEEQL_PG_DSN="postgres://user:pass@host/db" go test ./internal/adapter/postgres/ -run TestIntegration
 ```
 Integration tests auto-skip if PostgreSQL is unavailable.
 
-Version info is injected via LDFLAGS from git tags/commit/date. Releases use `make build-all` + `gh release create` (targets: linux/darwin amd64+arm64, windows amd64). Homebrew tap at `sadopc/homebrew-tap`. Release archives follow naming `gotermsql_X.Y.Z_{os}_{arch}.tar.gz`.
+Version info is injected via LDFLAGS from git tags/commit/date. Releases use `make build-all` + `gh release create` (targets: linux/darwin amd64+arm64, windows amd64). Homebrew tap at `sadopc/homebrew-tap`. Release archives follow naming `seeql_X.Y.Z_{os}_{arch}.tar.gz`.
 
 ## Architecture
 
@@ -80,13 +79,13 @@ Query execution and schema loading are async (goroutines returning `tea.Cmd`). T
 func init() { adapter.Register(&Adapter{}) }
 ```
 
-Imported as blank imports in `cmd/gotermsql/main.go` to trigger registration.
+Imported as blank imports in `cmd/seeql/main.go` to trigger registration.
 
 **`Connection.Databases()` contract:** Must return `[]schema.Database` with `Schemas` and `Tables` populated for the connected database. PostgreSQL can only introspect the current database via `information_schema`; other databases appear as names only. SQLite returns a single database with `"main"` schema.
 
 **`BatchIntrospector` interface (optional):** Connections can implement `AllColumns()`, `AllIndexes()`, `AllForeignKeys()` methods that return `map[tableName][]T` for an entire schema in a single query each. `loadSchema()` type-asserts for this interface and uses batch methods when available (3 queries per schema vs 3×N per table). PostgreSQL and MySQL both implement it.
 
-**DuckDB conditional compilation:** `duckdb_enabled.go` (`//go:build duckdb`) has the real implementation; `duckdb_disabled.go` (`//go:build !duckdb`) registers a stub that returns "not compiled in" errors. Both files exist so the code compiles with or without the tag.
+**DuckDB dropped.** Pure Go only — PostgreSQL, MySQL, and SQLite.
 
 ## Autocomplete System
 
@@ -133,9 +132,9 @@ Two layers with different word-break rules:
 
 ## Neovim Integration
 
-Neovim plugin at `sadopc/gotermsql.nvim` launches gotermsql in a floating terminal. Two workarounds handle Neovim's libvterm quirks:
+Neovim plugin at `sadopc/seeql.nvim` launches seeql in a floating terminal. Two workarounds handle Neovim's libvterm quirks:
 
-**`GOTERMSQL_HEIGHT_OFFSET` env var** (`internal/app/app.go`): Integer offset applied to reported terminal height. libvterm reports 1 extra row in alt-screen mode, causing the first line to scroll off. The plugin sets `GOTERMSQL_HEIGHT_OFFSET=-1` to compensate. Read once per `WindowSizeMsg` via `heightOffset()`.
+**`SEEQL_HEIGHT_OFFSET` env var** (`internal/app/app.go`): Integer offset applied to reported terminal height. libvterm reports 1 extra row in alt-screen mode, causing the first line to scroll off. The plugin sets `SEEQL_HEIGHT_OFFSET=-1` to compensate. Read once per `WindowSizeMsg` via `heightOffset()`.
 
 **`NVIM` env var detection** (`internal/ui/sidebar/sidebar.go`): When `NVIM` is set (Neovim sets this for child processes), sidebar uses single-width Unicode icons (`■`, `▪`, `≡`, `◆`, `◎`, `◇`) instead of emoji (`🗄`, `📁`, `📋`, `📊`, `👁`, `📄`). libvterm renders emoji at different widths than Go's Unicode width calculation expects, causing cursor mismatch and ghost/duplicate lines.
 
@@ -143,7 +142,7 @@ Neovim plugin at `sadopc/gotermsql.nvim` launches gotermsql in a floating termin
 
 ## Theme System
 
-Three themes in `internal/theme/theme.go`: `"default"` (dark), `"light"`, `"monokai"`. `theme.Current` is a global pointer used by all components. When adding styles to themes, add to all three variants.
+Single adaptive theme in `internal/theme/theme.go`. Uses `lipgloss.NoColor{}` for transparent backgrounds and the ANSI 16-colour palette for foregrounds. Inherits the terminal's colour scheme automatically. `theme.Current` is a global pointer used by all components.
 
 ## Audit Log
 
@@ -158,11 +157,14 @@ Opt-in JSON Lines audit log for compliance. Controlled by `Config.Audit` (`inter
 **Rotation:** Single backup (`.1` suffix) when file exceeds `MaxSizeMB`. Set `max_size_mb: 0` to disable rotation.
 
 **Config example:**
-```yaml
-audit:
-  enabled: true
-  path: ""           # defaults to ConfigDir()/audit.jsonl
-  max_size_mb: 50
+```json
+{
+  "audit": {
+    "enabled": true,
+    "path": "",
+    "max_size_mb": 50
+  }
+}
 ```
 
 ## Key Patterns & Gotchas
@@ -174,8 +176,8 @@ audit:
 - **Editor Focus():** Must be called explicitly after creating a new editor — `textarea` defaults to blurred state and silently drops all input when blurred.
 - **Editor InsertText():** Appends at end, not at cursor position (textarea library limitation). `ReplaceWord()` handles autocomplete replacement.
 - **Syntax highlighting:** Chroma tokenization runs on every `View()` call in blurred mode. No caching.
-- **DSN auto-detection:** `detectAdapter()` in main.go uses protocol prefixes and file extensions. Ambiguous DSNs default to PostgreSQL.
-- **History:** SQLite-backed (`~/.config/gotermsql/history.db`). Closed via `defer` in main.
+- **DSN auto-detection:** `adapter.DetectAdapter()` uses protocol prefixes and file extensions. Ambiguous DSNs default to PostgreSQL.
+- **History:** SQLite-backed (`~/.config/seeql/history.db`). Closed via `defer` in main.
 - **pgtype.Numeric:** pgx v5 returns `pgtype.Numeric` for PostgreSQL numeric/decimal columns. The `valueToString()` function handles this via `val.Value()` — if adding new pgx type conversions, add cases before the `default` fallback.
 - **Help overlay:** Full-screen, blocks all key input when visible. Closed by `?`, `F1`, `Esc`, or `q`.
 - **Schema load warnings:** Introspection errors (per-table or batch) are collected as warnings. If any exist, "Schema loaded with N warnings" appears in the status bar.
