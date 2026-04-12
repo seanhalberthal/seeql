@@ -28,7 +28,7 @@ SEEQL_PG_DSN="postgres://user:pass@host/db" go test ./internal/adapter/postgres/
 ```
 Integration tests auto-skip if PostgreSQL is unavailable.
 
-Version info is injected via LDFLAGS from git tags/commit/date. Releases use `make build-all` + `gh release create` (targets: linux/darwin amd64+arm64, windows amd64). Homebrew tap at `sadopc/homebrew-tap`. Release archives follow naming `seeql_X.Y.Z_{os}_{arch}.tar.gz`.
+Version info is injected via LDFLAGS from git tags/commit/date. Releases use `make build-all` + `gh release create` (targets: linux/darwin amd64+arm64, windows amd64). Homebrew tap at `seanhalberthal/homebrew-tap`. Release archives follow naming `seeql_X.Y.Z_{os}_{arch}.tar.gz`.
 
 ## Architecture
 
@@ -134,7 +134,7 @@ Two layers with different word-break rules:
 
 ## Neovim Integration
 
-Neovim plugin at `sadopc/seeql.nvim` launches seeql in a floating terminal. Two workarounds handle Neovim's libvterm quirks:
+Neovim plugin at `seanhalberthal/seeql.nvim` launches seeql in a floating terminal. Two workarounds handle Neovim's libvterm quirks:
 
 **`SEEQL_HEIGHT_OFFSET` env var** (`internal/app/app.go`): Integer offset applied to reported terminal height. libvterm reports 1 extra row in alt-screen mode, causing the first line to scroll off. The plugin sets `SEEQL_HEIGHT_OFFSET=-1` to compensate. Read once per `WindowSizeMsg` via `heightOffset()`.
 
