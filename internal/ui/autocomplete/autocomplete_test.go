@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/completion"
-	"github.com/sadopc/gotermsql/internal/schema"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/sadopc/seeql/internal/completion"
+	"github.com/sadopc/seeql/internal/schema"
+	"github.com/sadopc/seeql/internal/theme"
 )
 
 func init() {

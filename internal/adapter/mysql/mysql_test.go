@@ -3,7 +3,7 @@ package mysql
 import (
 	"testing"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
+	"github.com/sadopc/seeql/internal/adapter"
 )
 
 func TestMySQLAdapter_Name(t *testing.T) {

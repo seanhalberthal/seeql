@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/sadopc/gotermsql/internal/config"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/sadopc/seeql/internal/config"
+	"github.com/sadopc/seeql/internal/theme"
 )
 
 func init() {

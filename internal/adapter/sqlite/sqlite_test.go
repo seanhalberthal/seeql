@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
+	"github.com/sadopc/seeql/internal/adapter"
 )
 
 func TestSQLiteAdapter_Name(t *testing.T) {

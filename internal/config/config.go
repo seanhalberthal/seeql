@@ -68,15 +68,15 @@ func DefaultConfig() *Config {
 	}
 }
 
-// ConfigDir returns the gotermsql configuration directory path.
+// ConfigDir returns the seeql configuration directory path.
 // It uses os.UserConfigDir to locate the base config directory and
-// appends "gotermsql" to it, typically resulting in ~/.config/gotermsql/.
+// appends "seeql" to it, typically resulting in ~/.config/seeql/.
 func ConfigDir() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("config dir: %w", err)
 	}
-	return filepath.Join(base, "gotermsql"), nil
+	return filepath.Join(base, "seeql"), nil
 }
 
 // Load reads a Config from the YAML file at path. If the file does not exist,

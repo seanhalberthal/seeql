@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/config"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/sadopc/seeql/internal/config"
+	"github.com/sadopc/seeql/internal/theme"
 )
 
 // State tracks the connection manager screen.

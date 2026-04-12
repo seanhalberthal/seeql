@@ -8,8 +8,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sadopc/gotermsql/internal/history"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/sadopc/seeql/internal/history"
+	"github.com/sadopc/seeql/internal/theme"
 )
 
 // SelectQueryMsg is sent when the user picks a history entry.

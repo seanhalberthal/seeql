@@ -7,8 +7,8 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/schema"
+	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/sadopc/seeql/internal/schema"
 	"github.com/sahilm/fuzzy"
 )
 

@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/schema"
+	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/sadopc/seeql/internal/schema"
 )
 
 var errDisabled = errors.New("DuckDB support not compiled in. Rebuild with -tags duckdb")

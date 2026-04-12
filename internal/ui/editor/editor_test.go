@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/sadopc/seeql/internal/theme"
 )
 
 func init() {

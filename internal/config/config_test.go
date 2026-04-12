@@ -537,7 +537,7 @@ func TestConfigDir(t *testing.T) {
 	if dir == "" {
 		t.Fatal("ConfigDir() returned empty string")
 	}
-	if filepath.Base(dir) != "gotermsql" {
-		t.Errorf("ConfigDir() base = %q, want %q", filepath.Base(dir), "gotermsql")
+	if filepath.Base(dir) != "seeql" {
+		t.Errorf("ConfigDir() base = %q, want %q", filepath.Base(dir), "seeql")
 	}
 }

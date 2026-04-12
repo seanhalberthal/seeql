@@ -1,4 +1,4 @@
-// Package theme provides a centralized styling system for the gotermsql
+// Package theme provides a centralized styling system for the seeql
 // terminal UI. Every visual element references a lipgloss.Style held in a
 // Theme struct so that the entire look-and-feel can be swapped at runtime.
 package theme

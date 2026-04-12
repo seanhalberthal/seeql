@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	appmsg "github.com/sadopc/gotermsql/internal/msg"
-	"github.com/sadopc/gotermsql/internal/schema"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/sadopc/seeql/internal/adapter"
+	appmsg "github.com/sadopc/seeql/internal/msg"
+	"github.com/sadopc/seeql/internal/schema"
+	"github.com/sadopc/seeql/internal/theme"
 )
 
 func init() {

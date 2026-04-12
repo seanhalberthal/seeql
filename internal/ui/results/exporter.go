@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
+	"github.com/sadopc/seeql/internal/adapter"
 )
 
 // ExportCSV writes the given columns and rows to a CSV file at path.

@@ -13,21 +13,21 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/audit"
-	"github.com/sadopc/gotermsql/internal/completion"
-	"github.com/sadopc/gotermsql/internal/config"
-	"github.com/sadopc/gotermsql/internal/history"
-	"github.com/sadopc/gotermsql/internal/schema"
-	"github.com/sadopc/gotermsql/internal/theme"
-	"github.com/sadopc/gotermsql/internal/ui/autocomplete"
-	"github.com/sadopc/gotermsql/internal/ui/connmgr"
-	"github.com/sadopc/gotermsql/internal/ui/editor"
-	"github.com/sadopc/gotermsql/internal/ui/historybrowser"
-	"github.com/sadopc/gotermsql/internal/ui/results"
-	"github.com/sadopc/gotermsql/internal/ui/sidebar"
-	"github.com/sadopc/gotermsql/internal/ui/statusbar"
-	"github.com/sadopc/gotermsql/internal/ui/tabs"
+	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/sadopc/seeql/internal/audit"
+	"github.com/sadopc/seeql/internal/completion"
+	"github.com/sadopc/seeql/internal/config"
+	"github.com/sadopc/seeql/internal/history"
+	"github.com/sadopc/seeql/internal/schema"
+	"github.com/sadopc/seeql/internal/theme"
+	"github.com/sadopc/seeql/internal/ui/autocomplete"
+	"github.com/sadopc/seeql/internal/ui/connmgr"
+	"github.com/sadopc/seeql/internal/ui/editor"
+	"github.com/sadopc/seeql/internal/ui/historybrowser"
+	"github.com/sadopc/seeql/internal/ui/results"
+	"github.com/sadopc/seeql/internal/ui/sidebar"
+	"github.com/sadopc/seeql/internal/ui/statusbar"
+	"github.com/sadopc/seeql/internal/ui/tabs"
 )
 
 // TabState holds per-tab state.
@@ -842,13 +842,13 @@ func (m Model) View() string {
 	return clampViewHeight(view, m.height)
 }
 
-// heightOffset returns the height adjustment from the GOTERMSQL_HEIGHT_OFFSET
+// heightOffset returns the height adjustment from the SEEQL_HEIGHT_OFFSET
 // environment variable. Neovim's libvterm may report a terminal height that is
 // 1 row larger than the actual renderable area, causing the first line to
-// scroll off-screen. The Neovim plugin sets GOTERMSQL_HEIGHT_OFFSET=-1 to
+// scroll off-screen. The Neovim plugin sets SEEQL_HEIGHT_OFFSET=-1 to
 // compensate.
 func heightOffset() int {
-	s := os.Getenv("GOTERMSQL_HEIGHT_OFFSET")
+	s := os.Getenv("SEEQL_HEIGHT_OFFSET")
 	if s == "" {
 		return 0
 	}
@@ -1001,7 +1001,7 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("  gotermsql - Keyboard Shortcuts"))
+	b.WriteString(titleStyle.Render("  seeql - Keyboard Shortcuts"))
 	b.WriteString("\n")
 
 	b.WriteString(sectionStyle.Render("  Query"))

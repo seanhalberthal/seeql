@@ -15,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/schema"
+	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/sadopc/seeql/internal/schema"
 )
 
 func init() {
@@ -635,7 +635,7 @@ func (c *pgConn) ExecuteStreaming(ctx context.Context, query string, pageSize in
 		return nil, fmt.Errorf("streaming begin tx: %w", err)
 	}
 
-	cursorName := "gotermsql_cursor"
+	cursorName := "seeql_cursor"
 	_, err = tx.Exec(ctx, fmt.Sprintf("DECLARE %s SCROLL CURSOR FOR %s", cursorName, query))
 	if err != nil {
 		tx.Rollback(ctx)

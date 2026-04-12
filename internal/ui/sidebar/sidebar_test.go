@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	appmsg "github.com/sadopc/gotermsql/internal/msg"
-	"github.com/sadopc/gotermsql/internal/schema"
-	"github.com/sadopc/gotermsql/internal/theme"
+	appmsg "github.com/sadopc/seeql/internal/msg"
+	"github.com/sadopc/seeql/internal/schema"
+	"github.com/sadopc/seeql/internal/theme"
 )
 
 func init() {

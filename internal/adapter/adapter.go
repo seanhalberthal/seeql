@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sadopc/gotermsql/internal/schema"
+	"github.com/sadopc/seeql/internal/schema"
 )
 
 var (

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
+	"github.com/sadopc/seeql/internal/adapter"
 )
 
 func columns(names ...string) []adapter.ColumnMeta {

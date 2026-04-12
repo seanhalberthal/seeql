@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
+	"github.com/sadopc/seeql/internal/adapter"
 )
 
 func TestPostgresAdapter_Name(t *testing.T) {

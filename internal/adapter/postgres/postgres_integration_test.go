@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
+	"github.com/sadopc/seeql/internal/adapter"
 )
 
 // Default DSN for local Homebrew PostgreSQL.
-// Override with GOTERMSQL_PG_DSN env var.
-const defaultTestDSN = "postgres://localhost:5432/gotermsql_test?sslmode=disable"
+// Override with SEEQL_PG_DSN env var.
+const defaultTestDSN = "postgres://localhost:5432/seeql_test?sslmode=disable"
 
 func testDSN() string {
-	if dsn := os.Getenv("GOTERMSQL_PG_DSN"); dsn != "" {
+	if dsn := os.Getenv("SEEQL_PG_DSN"); dsn != "" {
 		return dsn
 	}
 	return defaultTestDSN
@@ -45,8 +45,8 @@ func TestIntegration_ConnectAndPing(t *testing.T) {
 	if conn.AdapterName() != "postgres" {
 		t.Errorf("AdapterName() = %q, want %q", conn.AdapterName(), "postgres")
 	}
-	if conn.DatabaseName() != "gotermsql_test" {
-		t.Errorf("DatabaseName() = %q, want %q", conn.DatabaseName(), "gotermsql_test")
+	if conn.DatabaseName() != "seeql_test" {
+		t.Errorf("DatabaseName() = %q, want %q", conn.DatabaseName(), "seeql_test")
 	}
 }
 
@@ -177,19 +177,19 @@ func TestIntegration_Introspection(t *testing.T) {
 		}
 		found := false
 		for _, db := range dbs {
-			if db.Name == "gotermsql_test" {
+			if db.Name == "seeql_test" {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Error("gotermsql_test not found in Databases()")
+			t.Error("seeql_test not found in Databases()")
 		}
 	})
 
 	// Tables
 	t.Run("Tables", func(t *testing.T) {
-		tables, err := conn.Tables(ctx, "gotermsql_test", "public")
+		tables, err := conn.Tables(ctx, "seeql_test", "public")
 		if err != nil {
 			t.Fatalf("Tables: %v", err)
 		}
@@ -207,7 +207,7 @@ func TestIntegration_Introspection(t *testing.T) {
 
 	// Columns
 	t.Run("Columns", func(t *testing.T) {
-		cols, err := conn.Columns(ctx, "gotermsql_test", "public", "test_products")
+		cols, err := conn.Columns(ctx, "seeql_test", "public", "test_products")
 		if err != nil {
 			t.Fatalf("Columns: %v", err)
 		}
