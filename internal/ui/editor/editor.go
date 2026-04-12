@@ -203,6 +203,11 @@ func (m Model) Focused() bool {
 	return m.focused
 }
 
+// CursorLine returns the 0-indexed line the cursor is on.
+func (m Model) CursorLine() int {
+	return m.textarea.Line()
+}
+
 // Modified reports whether the content has changed since the last call to
 // ResetModified.
 func (m Model) Modified() bool {

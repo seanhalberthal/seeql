@@ -919,7 +919,7 @@ func (m *Model) handleEditorOverlayKey(msg tea.KeyMsg) tea.Cmd {
 		m.closeEditor()
 		return nil
 
-	case "ctrl+enter", "f5", "ctrl+g":
+	case "f5", "ctrl+g":
 		query := ts.Editor.Value()
 		if query != "" {
 			tabID := m.tabs.ActiveID()
@@ -973,18 +973,36 @@ func (m Model) renderEditorOverlay(ts *TabState, mainWidth, mainHeight int) stri
 	ts.Editor.SetSize(editorW-2, editorH-2)
 	editorView := ts.Editor.View()
 
-	// Autocomplete overlay within the editor
+	// Autocomplete overlay — position just below the cursor line
 	if m.autocomp.Visible() {
 		acView := m.autocomp.View()
 		acHeight := lipgloss.Height(acView)
 		editorLines := strings.Split(editorView, "\n")
-		if acHeight < len(editorLines) {
-			editorLines = editorLines[:len(editorLines)-acHeight]
-			editorView = strings.Join(editorLines, "\n") + "\n" + acView
+
+		// Insert autocomplete after the cursor line, replacing lines below it
+		insertAt := ts.Editor.CursorLine() + 1
+		if insertAt >= len(editorLines) {
+			insertAt = len(editorLines) - 1
 		}
+		endAt := insertAt + acHeight
+		if endAt > len(editorLines) {
+			endAt = len(editorLines)
+		}
+
+		var result []string
+		result = append(result, editorLines[:insertAt]...)
+		result = append(result, strings.Split(acView, "\n")...)
+		if endAt < len(editorLines) {
+			result = append(result, editorLines[endAt:]...)
+		}
+		// Trim to original height so the overlay doesn't expand the editor
+		if len(result) > len(editorLines) {
+			result = result[:len(editorLines)]
+		}
+		editorView = strings.Join(result, "\n")
 	}
 
-	hint := th.MutedText.Render("  ctrl+enter: execute  esc: close")
+	hint := th.MutedText.Render("  F5: execute  esc: close")
 
 	content := lipgloss.JoinVertical(lipgloss.Left, editorView, "", hint)
 
@@ -1053,7 +1071,7 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 
 	b.WriteString(sectionStyle.Render("  Editor (floating)"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+Enter / F5", "Execute query"))
+	b.WriteString(line("F5 / Ctrl+G", "Execute query"))
 	b.WriteString("\n")
 	b.WriteString(line("Ctrl+C", "Cancel running query"))
 	b.WriteString("\n")

@@ -161,14 +161,14 @@ func (m Model) View() string {
 		// Show key hints when idle
 		hintKey := th.StatusBarValue
 		hintSep := th.StatusBar
-		center = hintKey.Render("F5") +
-			hintSep.Render(" Run ") +
-			hintKey.Render("Ctrl+Q") +
-			hintSep.Render(" Quit ") +
-			hintKey.Render("Shift+Tab") +
+		center = hintKey.Render("e") +
+			hintSep.Render(" Editor ") +
+			hintKey.Render("Tab") +
 			hintSep.Render(" Switch pane ") +
-			hintKey.Render("F1") +
-			hintSep.Render(" Help ")
+			hintKey.Render("?") +
+			hintSep.Render(" Help ") +
+			hintKey.Render("q") +
+			hintSep.Render(" Quit ")
 	}
 
 	// Right section: key mode + cursor position

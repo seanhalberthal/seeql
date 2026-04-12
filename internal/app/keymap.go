@@ -92,8 +92,8 @@ func StandardKeyMap() KeyMap {
 			key.WithHelp("ctrl+pgup", "prev tab"),
 		),
 		ExecuteQuery: key.NewBinding(
-			key.WithKeys("ctrl+enter", "f5", "ctrl+g"),
-			key.WithHelp("ctrl+enter", "run query"),
+			key.WithKeys("f5", "ctrl+g"),
+			key.WithHelp("f5", "run query"),
 		),
 		CancelQuery: key.NewBinding(
 			key.WithKeys("ctrl+c"),

@@ -151,8 +151,8 @@ func TestNew_VimMode(t *testing.T) {
 		if !containsKey(m.keyMap.Quit, "ctrl+q") {
 			t.Errorf("VimKeyMap.Quit should still contain ctrl+q")
 		}
-		if !containsKey(m.keyMap.ExecuteQuery, "ctrl+enter") {
-			t.Errorf("VimKeyMap.ExecuteQuery should still contain ctrl+enter")
+		if !containsKey(m.keyMap.ExecuteQuery, "f5") {
+			t.Errorf("VimKeyMap.ExecuteQuery should contain f5")
 		}
 	})
 

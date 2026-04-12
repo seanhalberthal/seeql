@@ -174,7 +174,7 @@ Opt-in JSON Lines audit log for compliance. Controlled by `Config.Audit` (`inter
 - **Query execution is async:** `tea.Batch()` sends `QueryStartedMsg` immediately, then `QueryResultMsg` or `QueryStreamingMsg` when the goroutine completes. Streaming SELECTs have no timeout; non-streaming queries have a 5-minute timeout.
 - **Nil guards on async handlers:** Always check both `ts != nil` (tab may be closed) and `m.conn != nil` (may be disconnected) before accessing tab state or connection in async message handlers. When `ts == nil`, still clear `m.executing` if `msg.TabID == m.executingTabID`.
 - **Error sanitization:** `sanitizeError()` strips credentials from DSN URLs in error messages (e.g., `postgres://user:pass@` → `postgres://***@`). Applied in `ConnectErrMsg` handler and connmgr test result display. Defined separately in both `internal/app/` and `internal/ui/connmgr/` packages.
-- **Ctrl+Enter not portable:** Most terminals cannot distinguish Ctrl+Enter from Enter. Use F5 or Ctrl+G as reliable alternatives.
+- **No Ctrl+Enter:** Most terminals cannot distinguish Ctrl+Enter from Enter. Execute queries with F5 or Ctrl+G instead.
 - **Editor Focus():** Must be called explicitly after creating a new editor — `textarea` defaults to blurred state and silently drops all input when blurred.
 - **Editor InsertText():** Appends at end, not at cursor position (textarea library limitation). `ReplaceWord()` handles autocomplete replacement.
 - **Syntax highlighting:** Chroma tokenization runs on every `View()` call in blurred mode. No caching.

@@ -37,8 +37,8 @@ func TestStandardKeyMap(t *testing.T) {
 
 	t.Run("ExecuteQuery has keys", func(t *testing.T) {
 		requireNonEmpty(t, "ExecuteQuery", km.ExecuteQuery)
-		if !containsKey(km.ExecuteQuery, "ctrl+enter") && !containsKey(km.ExecuteQuery, "f5") {
-			t.Error("ExecuteQuery should contain ctrl+enter or f5")
+		if !containsKey(km.ExecuteQuery, "f5") {
+			t.Error("ExecuteQuery should contain f5")
 		}
 	})
 
@@ -296,8 +296,8 @@ func TestVimKeyMap_InheritsStandardBindings(t *testing.T) {
 
 	t.Run("ExecuteQuery still has keys", func(t *testing.T) {
 		requireNonEmpty(t, "ExecuteQuery", km.ExecuteQuery)
-		if !containsKey(km.ExecuteQuery, "ctrl+enter") && !containsKey(km.ExecuteQuery, "f5") {
-			t.Error("VimKeyMap.ExecuteQuery should contain ctrl+enter or f5")
+		if !containsKey(km.ExecuteQuery, "f5") {
+			t.Error("VimKeyMap.ExecuteQuery should contain f5")
 		}
 	})
 
@@ -499,10 +499,7 @@ func TestStandardKeyMap_ExecuteQueryMultipleKeys(t *testing.T) {
 	km := StandardKeyMap()
 	keys := km.ExecuteQuery.Keys()
 	if len(keys) < 2 {
-		t.Errorf("ExecuteQuery should have at least 2 keys (ctrl+enter and f5), got %v", keys)
-	}
-	if !containsKey(km.ExecuteQuery, "ctrl+enter") {
-		t.Errorf("ExecuteQuery missing ctrl+enter, keys = %v", keys)
+		t.Errorf("ExecuteQuery should have at least 2 keys (f5 and ctrl+g), got %v", keys)
 	}
 	if !containsKey(km.ExecuteQuery, "f5") {
 		t.Errorf("ExecuteQuery missing f5, keys = %v", keys)

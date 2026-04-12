@@ -91,7 +91,7 @@ make build
 
 | Key | Action |
 |-----|--------|
-| `Ctrl+Enter` / `F5` | Execute query |
+| `F5` / `Ctrl+G` | Execute query |
 | `Ctrl+C` | Cancel running query |
 | `Ctrl+H` | Query history |
 | `Esc` | Close editor |
