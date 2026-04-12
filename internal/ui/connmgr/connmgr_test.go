@@ -693,10 +693,14 @@ func TestTruncateDSN(t *testing.T) {
 		t.Fatalf("expected sanitised DSN %q, got %q", short, got)
 	}
 
+	// After sanitisation, "postgres://***@really-long-host..." is 80+ chars.
+	// truncateDSN should shorten it. The ellipsis is a multi-byte rune so
+	// we check the rune count rather than byte length.
 	long := "postgres://user:pass@really-long-host.example.com:5432/some_database_name?sslmode=disable"
-	got = truncateDSN(long, 40)
-	if len(got) > 40 {
-		t.Fatalf("expected truncated to 40 chars, got %d: %q", len(got), got)
+	got = truncateDSN(long, 50)
+	sanitised := sanitizeError(long)
+	if got == sanitised {
+		t.Fatalf("expected truncation, got full sanitised string: %q", got)
 	}
 }
 

@@ -556,17 +556,20 @@ func (m *Model) SetConnections(conns []config.SavedConnection) {
 // sanitizeError strips credentials from error messages that may contain DSN URLs.
 func sanitizeError(msg string) string {
 	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://"} {
+		offset := 0
 		for {
-			idx := strings.Index(msg, prefix)
+			idx := strings.Index(msg[offset:], prefix)
 			if idx < 0 {
 				break
 			}
+			idx += offset // absolute position
 			rest := msg[idx+len(prefix):]
 			atIdx := strings.Index(rest, "@")
 			if atIdx < 0 {
 				break
 			}
 			msg = msg[:idx+len(prefix)] + "***" + msg[idx+len(prefix)+atIdx:]
+			offset = idx + len(prefix) + 4 // skip past "***@"
 		}
 	}
 	msg = reMySQLCreds.ReplaceAllString(msg, "${1}***@tcp(")

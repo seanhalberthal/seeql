@@ -1323,19 +1323,20 @@ func (m *Model) exportResults() tea.Cmd {
 func sanitizeError(msg string) string {
 	// Match postgres://user:pass@, mysql://user:pass@, etc.
 	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://"} {
+		offset := 0
 		for {
-			idx := strings.Index(msg, prefix)
+			idx := strings.Index(msg[offset:], prefix)
 			if idx < 0 {
 				break
 			}
-			// Find the @ after the prefix
+			idx += offset // absolute position
 			rest := msg[idx+len(prefix):]
 			atIdx := strings.Index(rest, "@")
 			if atIdx < 0 {
 				break
 			}
-			// Replace user:pass portion with ***
 			msg = msg[:idx+len(prefix)] + "***" + msg[idx+len(prefix)+atIdx:]
+			offset = idx + len(prefix) + 4 // skip past "***@"
 		}
 	}
 	// MySQL driver format: user:pass@tcp(
