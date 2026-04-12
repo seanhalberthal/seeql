@@ -1,8 +1,37 @@
-# seeql
+<div align="center">
 
-A terminal SQL client for PostgreSQL, MySQL, and SQLite. Pure Go, single binary.
+<picture>
+  <img alt="seeql" src=".github/assets/logo.svg" width="280">
+</picture>
 
-> *See your data.*
+<br>
+
+**Terminal SQL client for PostgreSQL, MySQL, and SQLite.**
+
+[![Go 1.25+](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev)
+[![Licence](https://img.shields.io/github/license/seanhalberthal/seeql?style=flat&label=licence&color=4493F8)](LICENCE)
+[![macOS](https://img.shields.io/badge/macOS-supported-6e7681?style=flat&logo=apple&logoColor=white)]()
+[![Linux](https://img.shields.io/badge/Linux-supported-6e7681?style=flat&logo=linux&logoColor=white)]()
+
+[Quick Start](#quick-start) · [Features](#features) · [Keybindings](#keybindings) · [Configuration](#configuration)
+
+</div>
+
+---
+
+## Quick Start
+
+```bash
+brew install seanhalberthal/tap/seeql
+```
+
+```bash
+seeql                                    # Launch connection manager
+seeql postgres://user:pass@host/db       # Connect via DSN
+seeql ./data.db                          # SQLite file
+```
+
+---
 
 ## Features
 
@@ -15,6 +44,8 @@ A terminal SQL client for PostgreSQL, MySQL, and SQLite. Pure Go, single binary.
 - **Query history** — SQLite-backed, searchable via Ctrl+H.
 - **Audit log** — opt-in JSON Lines trail for compliance.
 - **Pure Go** — zero CGo, cross-platform, instant startup.
+
+---
 
 ## Install
 
@@ -39,13 +70,7 @@ make build
 # Binary at bin/seeql
 ```
 
-## Usage
-
-```bash
-seeql                                    # Connection manager
-seeql postgres://user:pass@host/db       # Connect via DSN
-seeql ./data.db                          # SQLite file
-```
+---
 
 ## Keybindings
 
@@ -79,6 +104,8 @@ seeql ./data.db                          # SQLite file
 | `X` | Close tab |
 | `Ctrl+]` / `Ctrl+[` | Next / previous tab |
 
+---
+
 ## Configuration
 
 Config at `~/.config/seeql/config.json`:
@@ -106,6 +133,8 @@ Config at `~/.config/seeql/config.json`:
 }
 ```
 
+---
+
 ## Supported Databases
 
 | Database | Driver | CGo |
@@ -114,7 +143,10 @@ Config at `~/.config/seeql/config.json`:
 | MySQL | [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql) | No |
 | SQLite | [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) | No |
 
-## Architecture
+---
+
+<details>
+<summary><strong>Architecture</strong></summary>
 
 ```
 seeql/
@@ -147,6 +179,10 @@ seeql/
 
 Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Gloss](https://github.com/charmbracelet/lipgloss).
 
-## License
+</details>
 
-MIT
+---
+
+## Licence
+
+[MIT](LICENCE)

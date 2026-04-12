@@ -1,0 +1,5 @@
+▄▀▀▀▀ █▀▀▀▀ █▀▀▀▀ ▄▀▀▀▄ █
+ ▀▀▀▄ █▀▀   █▀▀   █ ▄ █ █
+▀▀▀▀  ▀▀▀▀▀ ▀▀▀▀▀  ▀▀▀▄ ▀▀▀▀▀
+Font: kompaktblk (figlet)
+Usage: figlet -f kompaktblk "seeql"
