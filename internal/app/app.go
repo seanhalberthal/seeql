@@ -969,9 +969,9 @@ func (m Model) renderEditorOverlay(ts *TabState, mainWidth, mainHeight int) stri
 		editorH = mainHeight - 4
 	}
 
-	// Size the editor component (subtract border: 2 chars each side)
-	ts.Editor.SetSize(editorW-2, editorH-2)
-	editorView := ts.Editor.View()
+	// Size the editor component (border accounted for by the overlay)
+	ts.Editor.SetSize(editorW, editorH-3) // -3 for hint line + blank + border overhead
+	editorView := ts.Editor.ContentView()
 
 	// Autocomplete overlay — position just below the cursor line
 	if m.autocomp.Visible() {
@@ -979,10 +979,10 @@ func (m Model) renderEditorOverlay(ts *TabState, mainWidth, mainHeight int) stri
 		acHeight := lipgloss.Height(acView)
 		editorLines := strings.Split(editorView, "\n")
 
-		// Insert autocomplete after the cursor line, replacing lines below it
+		// Insert autocomplete below the cursor line (+1 to be after it)
 		insertAt := ts.Editor.CursorLine() + 1
 		if insertAt >= len(editorLines) {
-			insertAt = len(editorLines) - 1
+			insertAt = len(editorLines)
 		}
 		endAt := insertAt + acHeight
 		if endAt > len(editorLines) {
@@ -995,7 +995,7 @@ func (m Model) renderEditorOverlay(ts *TabState, mainWidth, mainHeight int) stri
 		if endAt < len(editorLines) {
 			result = append(result, editorLines[endAt:]...)
 		}
-		// Trim to original height so the overlay doesn't expand the editor
+		// Trim to original height so the overlay doesn't expand
 		if len(result) > len(editorLines) {
 			result = result[:len(editorLines)]
 		}

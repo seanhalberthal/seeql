@@ -198,6 +198,24 @@ func (m *Model) Blur() {
 	m.textarea.Blur()
 }
 
+// ContentView returns just the textarea content without the border.
+// Used by the floating editor overlay which provides its own border.
+func (m Model) ContentView() string {
+	if m.focused {
+		return m.textarea.View()
+	}
+	th := theme.Current
+	innerW := m.width - 2
+	innerH := m.height - 2
+	if innerW < 1 {
+		innerW = 1
+	}
+	if innerH < 1 {
+		innerH = 1
+	}
+	return m.renderHighlighted(th, innerW, innerH)
+}
+
 // Focused reports whether the editor currently has input focus.
 func (m Model) Focused() bool {
 	return m.focused
