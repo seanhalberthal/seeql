@@ -44,7 +44,6 @@ type Model struct {
 	width        int
 	height       int
 	sidebarWidth int
-	editorHeight int // percentage of main area for editor (rest for results)
 	showSidebar  bool
 
 	// Focus
@@ -85,6 +84,7 @@ type Model struct {
 
 	// State
 	showHelp       bool
+	showEditor     bool
 	showConnMgr    bool
 	executing      bool
 	executingTabID int
@@ -107,9 +107,8 @@ func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Mode
 
 	m := Model{
 		sidebarWidth: 30,
-		editorHeight: 50,
 		showSidebar:  true,
-		focusedPane:  PaneEditor,
+		focusedPane:  PaneResults,
 
 		sidebar:     sidebar.New(),
 		tabs:        tabs.New(),
@@ -129,10 +128,11 @@ func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Mode
 
 	// Initialize first tab state
 	ed := editor.New(0)
-	ed.Focus()
+	res := results.New(0)
+	res.Focus()
 	m.tabStates[0] = &TabState{
 		Editor:  ed,
-		Results: results.New(0),
+		Results: res,
 	}
 
 	m.statusbar.SetKeyMode(keyMode)
@@ -182,6 +182,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showHelp = false
 			}
 			return m, nil
+		}
+
+		// Floating editor overlay captures input when visible
+		if m.showEditor {
+			return m, m.handleEditorOverlayKey(msg)
 		}
 
 		// Autocomplete takes priority when visible
@@ -443,7 +448,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Results: results.New(tabID),
 		}
 		m.updateLayout()
-		m.focusedPane = PaneEditor
+		m.setFocus(PaneResults)
 
 	case CloseTabMsg:
 		if m.executing && msg.TabID == m.executingTabID {
@@ -608,6 +613,10 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		m.connMgr.Show()
 		return nil
 
+	case msg.String() == "e" && m.focusedPane != PaneSidebar:
+		m.openEditor()
+		return nil
+
 	case msg.String() == "ctrl+h":
 		if m.histBrowser.Visible() {
 			m.histBrowser.Hide()
@@ -629,7 +638,7 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 	case msg.String() == "ctrl+[":
 		return m.tabs.PrevTab()
 
-	case msg.String() == "tab" && m.focusedPane != PaneEditor:
+	case msg.String() == "tab":
 		m.cycleFocus(1)
 		return nil
 
@@ -642,10 +651,6 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case msg.String() == "alt+2":
-		m.setFocus(PaneEditor)
-		return nil
-
-	case msg.String() == "alt+3":
 		m.setFocus(PaneResults)
 		return nil
 
@@ -663,19 +668,6 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 
-	case msg.String() == "ctrl+up":
-		if m.editorHeight > 20 {
-			m.editorHeight -= 5
-			m.updateLayout()
-		}
-		return nil
-
-	case msg.String() == "ctrl+down":
-		if m.editorHeight < 80 {
-			m.editorHeight += 5
-			m.updateLayout()
-		}
-		return nil
 	}
 	return nil
 }
@@ -692,37 +684,12 @@ func (m *Model) handleFocusedPaneKey(msg tea.KeyMsg) tea.Cmd {
 		m.sidebar, cmd = m.sidebar.Update(msg)
 		return cmd
 
-	case PaneEditor:
-		// Execute query on ctrl+enter, F5, or ctrl+g
-		if msg.String() == "ctrl+enter" || msg.String() == "f5" || msg.String() == "ctrl+g" {
-			query := ts.Editor.Value()
-			if query != "" {
-				tabID := m.tabs.ActiveID()
-				return func() tea.Msg { return ExecuteQueryMsg{Query: query, TabID: tabID} }
-			}
-			return nil
-		}
-
-		// Trigger autocomplete on ctrl+space
-		if msg.String() == "ctrl+@" || msg.String() == "ctrl+ " {
-			text := ts.Editor.Value()
-			// Approximate cursor position from textarea
-			m.autocomp.TriggerForced(text, len(text))
-			return nil
-		}
-
-		var cmd tea.Cmd
-		ts.Editor, cmd = ts.Editor.Update(msg)
-
-		// Trigger autocomplete after typing
-		if isTypingKey(msg) {
-			text := ts.Editor.Value()
-			m.autocomp.Trigger(text, len(text))
-		}
-
-		return cmd
-
 	case PaneResults:
+		// Open editor with 'e' key from results
+		if msg.String() == "e" {
+			m.openEditor()
+			return nil
+		}
 		var cmd tea.Cmd
 		ts.Results, cmd = ts.Results.Update(msg)
 		return cmd
@@ -756,64 +723,41 @@ func (m Model) View() string {
 	}
 
 	// Editor + Results
+	// Results fill the full main area
 	ts := m.activeTabState()
-	var editorView, resultsView string
-	if ts != nil {
-		editorH := mainHeight * m.editorHeight / 100
-		resultsH := mainHeight - editorH
-		if editorH < 3 {
-			editorH = 3
-		}
-		if resultsH < 3 {
-			resultsH = 3
-		}
-
-		mainWidth := m.width
-		if m.showSidebar {
-			mainWidth = m.width - m.sidebarWidth
-		}
-
-		ts.Editor.SetSize(mainWidth, editorH)
-		ts.Results.SetSize(mainWidth, resultsH)
-
-		editorView = ts.Editor.View()
-		resultsView = ts.Results.View()
-
-		// Autocomplete overlay - render within editor space to avoid pushing content off-screen
-		if m.autocomp.Visible() {
-			acView := m.autocomp.View()
-			acHeight := lipgloss.Height(acView)
-			editorLines := strings.Split(editorView, "\n")
-			if acHeight < len(editorLines) {
-				// Replace bottom lines of editor with autocomplete
-				editorLines = editorLines[:len(editorLines)-acHeight]
-				editorView = strings.Join(editorLines, "\n") + "\n" + acView
-			} else {
-				// Editor too small, just show autocomplete below first line
-				if len(editorLines) > 1 {
-					editorView = editorLines[0] + "\n" + acView
-				}
-			}
-		}
-	} else {
-		editorView = "No active tab"
-		resultsView = ""
+	var resultsView string
+	mainWidth := m.width
+	if m.showSidebar {
+		mainWidth = m.width - m.sidebarWidth
 	}
 
-	mainContent := lipgloss.JoinVertical(lipgloss.Left, editorView, resultsView)
+	if ts != nil {
+		ts.Results.SetSize(mainWidth, mainHeight)
+		resultsView = ts.Results.View()
+	} else {
+		resultsView = "No active tab"
+	}
 
-	// Sidebar + Main
+	// Sidebar + Results
 	var content string
 	if m.showSidebar {
 		m.sidebar.SetSize(m.sidebarWidth, mainHeight)
 		sidebarView := m.sidebar.View()
-		content = lipgloss.JoinHorizontal(lipgloss.Top, sidebarView, mainContent)
+		content = lipgloss.JoinHorizontal(lipgloss.Top, sidebarView, resultsView)
 	} else {
-		content = mainContent
+		content = resultsView
 	}
 
-	// Assemble full view
+	// Assemble base view
 	view := lipgloss.JoinVertical(lipgloss.Left, tabBar, content, statusBar)
+
+	// Floating editor overlay
+	if m.showEditor && ts != nil {
+		editorOverlay := m.renderEditorOverlay(ts, mainWidth, mainHeight)
+		view = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, editorOverlay,
+			lipgloss.WithWhitespaceChars(" "),
+		)
+	}
 
 	// Help overlay — full-screen centered
 	if m.showHelp {
@@ -831,7 +775,6 @@ func (m Model) View() string {
 	// Connection manager overlay
 	if m.connMgr.Visible() {
 		connView := m.connMgr.View()
-		// Center the connection manager
 		centered := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, connView)
 		return clampViewHeight(centered, m.height)
 	}
@@ -891,17 +834,14 @@ func (m *Model) updateLayout() {
 
 	ts := m.activeTabState()
 	if ts != nil {
-		editorH := mainHeight * m.editorHeight / 100
-		resultsH := mainHeight - editorH
-		ts.Editor.SetSize(mainWidth, editorH)
-		ts.Results.SetSize(mainWidth, resultsH)
+		ts.Results.SetSize(mainWidth, mainHeight)
 	}
 }
 
 func (m *Model) cycleFocus(direction int) {
-	panes := []Pane{PaneEditor, PaneResults}
+	panes := []Pane{PaneResults}
 	if m.showSidebar {
-		panes = []Pane{PaneSidebar, PaneEditor, PaneResults}
+		panes = []Pane{PaneSidebar, PaneResults}
 	}
 
 	current := 0
@@ -921,10 +861,6 @@ func (m *Model) setFocus(pane Pane) {
 	switch m.focusedPane {
 	case PaneSidebar:
 		m.sidebar.Blur()
-	case PaneEditor:
-		if ts := m.activeTabState(); ts != nil {
-			ts.Editor.Blur()
-		}
 	case PaneResults:
 		if ts := m.activeTabState(); ts != nil {
 			ts.Results.Blur()
@@ -937,15 +873,125 @@ func (m *Model) setFocus(pane Pane) {
 	switch pane {
 	case PaneSidebar:
 		m.sidebar.Focus()
-	case PaneEditor:
-		if ts := m.activeTabState(); ts != nil {
-			ts.Editor.Focus()
-		}
 	case PaneResults:
 		if ts := m.activeTabState(); ts != nil {
 			ts.Results.Focus()
 		}
 	}
+}
+
+// openEditor shows the floating editor overlay and focuses the active tab's editor.
+func (m *Model) openEditor() {
+	m.showEditor = true
+	if ts := m.activeTabState(); ts != nil {
+		ts.Editor.Focus()
+	}
+}
+
+// closeEditor hides the floating editor overlay.
+func (m *Model) closeEditor() {
+	m.showEditor = false
+	m.autocomp.Dismiss()
+	if ts := m.activeTabState(); ts != nil {
+		ts.Editor.Blur()
+	}
+}
+
+// handleEditorOverlayKey processes keys when the floating editor overlay is visible.
+func (m *Model) handleEditorOverlayKey(msg tea.KeyMsg) tea.Cmd {
+	ts := m.activeTabState()
+	if ts == nil {
+		return nil
+	}
+
+	// Autocomplete takes priority when visible
+	if m.autocomp.Visible() {
+		switch msg.String() {
+		case "up", "down", "enter", "tab", "esc", "ctrl+p", "ctrl+n":
+			var cmd tea.Cmd
+			m.autocomp, cmd = m.autocomp.Update(msg)
+			return cmd
+		}
+	}
+
+	switch msg.String() {
+	case "esc":
+		m.closeEditor()
+		return nil
+
+	case "ctrl+enter", "f5", "ctrl+g":
+		query := ts.Editor.Value()
+		if query != "" {
+			tabID := m.tabs.ActiveID()
+			m.closeEditor()
+			return func() tea.Msg { return ExecuteQueryMsg{Query: query, TabID: tabID} }
+		}
+		return nil
+
+	case "ctrl+h":
+		if m.histBrowser.Visible() {
+			m.histBrowser.Hide()
+		} else {
+			m.histBrowser.Show()
+		}
+		return nil
+
+	case "ctrl+@", "ctrl+ ":
+		text := ts.Editor.Value()
+		m.autocomp.TriggerForced(text, len(text))
+		return nil
+	}
+
+	// Pass all other keys to the editor
+	var cmd tea.Cmd
+	ts.Editor, cmd = ts.Editor.Update(msg)
+
+	// Trigger autocomplete after typing
+	if isTypingKey(msg) {
+		text := ts.Editor.Value()
+		m.autocomp.Trigger(text, len(text))
+	}
+
+	return cmd
+}
+
+// renderEditorOverlay renders the floating editor panel.
+func (m Model) renderEditorOverlay(ts *TabState, mainWidth, mainHeight int) string {
+	th := theme.Current
+
+	// Editor takes ~60% of the available area
+	editorW := mainWidth * 3 / 4
+	if editorW < 40 {
+		editorW = mainWidth - 4
+	}
+	editorH := mainHeight * 3 / 5
+	if editorH < 8 {
+		editorH = mainHeight - 4
+	}
+
+	// Size the editor component (subtract border: 2 chars each side)
+	ts.Editor.SetSize(editorW-2, editorH-2)
+	editorView := ts.Editor.View()
+
+	// Autocomplete overlay within the editor
+	if m.autocomp.Visible() {
+		acView := m.autocomp.View()
+		acHeight := lipgloss.Height(acView)
+		editorLines := strings.Split(editorView, "\n")
+		if acHeight < len(editorLines) {
+			editorLines = editorLines[:len(editorLines)-acHeight]
+			editorView = strings.Join(editorLines, "\n") + "\n" + acView
+		}
+	}
+
+	hint := th.MutedText.Render("  ctrl+enter: execute  esc: close")
+
+	content := lipgloss.JoinVertical(lipgloss.Left, editorView, "", hint)
+
+	return th.FocusedBorder.
+		Width(editorW).
+		Padding(0, 1).
+		Render(content)
 }
 
 func (m Model) activeTabState() *TabState {

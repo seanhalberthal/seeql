@@ -20,9 +20,9 @@ func TestNew(t *testing.T) {
 	cfg := config.DefaultConfig()
 	m := New(cfg, nil, nil)
 
-	t.Run("focusedPane is PaneEditor", func(t *testing.T) {
-		if m.focusedPane != PaneEditor {
-			t.Errorf("focusedPane = %d, want PaneEditor (%d)", m.focusedPane, PaneEditor)
+	t.Run("focusedPane is PaneResults", func(t *testing.T) {
+		if m.focusedPane != PaneResults {
+			t.Errorf("focusedPane = %d, want PaneResults (%d)", m.focusedPane, PaneResults)
 		}
 	})
 
@@ -57,9 +57,9 @@ func TestNew(t *testing.T) {
 		}
 	})
 
-	t.Run("editorHeight has default", func(t *testing.T) {
-		if m.editorHeight != 50 {
-			t.Errorf("editorHeight = %d, want 50", m.editorHeight)
+	t.Run("showEditor is false by default", func(t *testing.T) {
+		if m.showEditor {
+			t.Error("showEditor should be false by default")
 		}
 	})
 
@@ -157,8 +157,8 @@ func TestNew_VimMode(t *testing.T) {
 	})
 
 	t.Run("other defaults unchanged", func(t *testing.T) {
-		if m.focusedPane != PaneEditor {
-			t.Errorf("focusedPane = %d, want PaneEditor", m.focusedPane)
+		if m.focusedPane != PaneResults {
+			t.Errorf("focusedPane = %d, want PaneResults", m.focusedPane)
 		}
 		if !m.showSidebar {
 			t.Error("showSidebar should be true by default")
@@ -310,11 +310,11 @@ func TestUpdate_SwitchTabMsg_BlursInactiveTabs(t *testing.T) {
 		m = model.(Model)
 	}
 
-	// Switch to tab 0 and ensure its editor is focused.
+	// Switch to tab 0 and ensure its results are focused.
 	model, _ = m.Update(SwitchTabMsg{TabID: 0})
 	m = model.(Model)
-	if ts := m.tabStates[0]; ts == nil || !ts.Editor.Focused() {
-		t.Fatal("expected tab 0 editor focused before switching")
+	if ts := m.tabStates[0]; ts == nil || !ts.Results.Focused() {
+		t.Fatal("expected tab 0 results focused before switching")
 	}
 
 	// Simulate Ctrl+] path where tab model advances active tab before message delivery.
@@ -328,11 +328,11 @@ func TestUpdate_SwitchTabMsg_BlursInactiveTabs(t *testing.T) {
 	if m.tabs.ActiveID() != 1 {
 		t.Fatalf("expected active tab ID 1, got %d", m.tabs.ActiveID())
 	}
-	if ts := m.tabStates[1]; ts == nil || !ts.Editor.Focused() {
-		t.Fatal("expected tab 1 editor focused after switch")
+	if ts := m.tabStates[1]; ts == nil || !ts.Results.Focused() {
+		t.Fatal("expected tab 1 results focused after switch")
 	}
-	if ts := m.tabStates[0]; ts != nil && ts.Editor.Focused() {
-		t.Fatal("expected inactive tab 0 editor blurred after switch")
+	if ts := m.tabStates[0]; ts != nil && ts.Results.Focused() {
+		t.Fatal("expected inactive tab 0 results blurred after switch")
 	}
 }
 
