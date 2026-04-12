@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/adapter"
 )
 
 func TestSQLiteAdapter_Name(t *testing.T) {

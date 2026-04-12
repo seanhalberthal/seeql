@@ -7,9 +7,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/sadopc/seeql/internal/adapter"
-	"github.com/sadopc/seeql/internal/config"
-	"github.com/sadopc/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/config"
+	"github.com/seanhalberthal/seeql/internal/schema"
 )
 
 // ---------------------------------------------------------------------------

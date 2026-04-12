@@ -13,9 +13,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
-	"github.com/sadopc/seeql/internal/adapter"
-	appmsg "github.com/sadopc/seeql/internal/msg"
-	"github.com/sadopc/seeql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	appmsg "github.com/seanhalberthal/seeql/internal/msg"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 // FetchedPageMsg carries rows fetched asynchronously from an iterator.

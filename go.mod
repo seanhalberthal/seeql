@@ -1,4 +1,4 @@
-module github.com/sadopc/seeql
+module github.com/seanhalberthal/seeql
 
 go 1.25.0
 

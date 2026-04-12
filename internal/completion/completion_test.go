@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sadopc/seeql/internal/adapter"
-	"github.com/sadopc/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/schema"
 )
 
 // ---------------------------------------------------------------------------

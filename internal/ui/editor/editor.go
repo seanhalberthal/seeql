@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sadopc/seeql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 // Model is a Bubble Tea component that wraps a textarea with SQL-aware

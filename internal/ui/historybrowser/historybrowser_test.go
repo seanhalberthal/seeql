@@ -5,7 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/sadopc/seeql/internal/history"
+	"github.com/seanhalberthal/seeql/internal/history"
 )
 
 func TestNilHistory(t *testing.T) {

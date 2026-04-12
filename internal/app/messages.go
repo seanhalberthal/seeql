@@ -1,9 +1,9 @@
 package app
 
-// Message types have moved to github.com/sadopc/seeql/internal/msg.
+// Message types have moved to github.com/seanhalberthal/seeql/internal/msg.
 // This file re-exports them for convenience within the app package.
 
-import appmsg "github.com/sadopc/seeql/internal/msg"
+import appmsg "github.com/seanhalberthal/seeql/internal/msg"
 
 // Re-export types used within app package.
 type (

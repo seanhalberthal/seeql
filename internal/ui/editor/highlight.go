@@ -7,7 +7,7 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sadopc/seeql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 // Highlighter tokenises SQL text using chroma and renders it with lipgloss

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sadopc/seeql/internal/adapter"
-	appmsg "github.com/sadopc/seeql/internal/msg"
-	"github.com/sadopc/seeql/internal/schema"
-	"github.com/sadopc/seeql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	appmsg "github.com/seanhalberthal/seeql/internal/msg"
+	"github.com/seanhalberthal/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 func init() {

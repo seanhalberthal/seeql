@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/adapter"
 )
 
 func columns(names ...string) []adapter.ColumnMeta {

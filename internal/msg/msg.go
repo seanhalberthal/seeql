@@ -3,8 +3,8 @@ package msg
 import (
 	"time"
 
-	"github.com/sadopc/seeql/internal/adapter"
-	"github.com/sadopc/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/schema"
 )
 
 // Pane focus targets.

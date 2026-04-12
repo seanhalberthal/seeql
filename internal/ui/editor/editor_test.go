@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sadopc/seeql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 func init() {

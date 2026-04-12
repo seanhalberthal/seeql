@@ -58,10 +58,10 @@ changelog:
 
 brews:
   - repository:
-      owner: sadopc
+      owner: seanhalberthal
       name: homebrew-tap
     directory: Formula
-    homepage: "https://github.com/sadopc/seeql"
+    homepage: "https://github.com/seanhalberthal/seeql"
     description: "A terminal SQL client for PostgreSQL, MySQL, and SQLite"
     license: "MIT"
     install: |

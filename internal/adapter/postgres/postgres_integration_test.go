@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sadopc/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/adapter"
 )
 
 // Default DSN for local Homebrew PostgreSQL.

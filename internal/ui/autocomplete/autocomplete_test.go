@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/sadopc/seeql/internal/adapter"
-	"github.com/sadopc/seeql/internal/completion"
-	"github.com/sadopc/seeql/internal/schema"
-	"github.com/sadopc/seeql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/completion"
+	"github.com/seanhalberthal/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 func init() {
