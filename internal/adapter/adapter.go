@@ -118,7 +118,6 @@ func IsSelectQuery(query string) bool {
 	for _, p := range []string{
 		"SELECT ", "WITH ", "EXPLAIN ", "SHOW ", "DESCRIBE ",
 		"DESC ", "PRAGMA ", "TABLE ", "VALUES ", "FROM ",
-		"SUMMARIZE ", "PIVOT ", "UNPIVOT ",
 	} {
 		if strings.HasPrefix(trimmed, p) {
 			return true
@@ -133,4 +132,26 @@ var Registry = map[string]Adapter{}
 // Register adds an adapter to the global registry.
 func Register(a Adapter) {
 	Registry[a.Name()] = a
+}
+
+// DetectAdapter returns the adapter name for a DSN string based on its scheme
+// or file extension. Returns "" if the adapter cannot be determined.
+func DetectAdapter(dsn string) string {
+	lower := strings.ToLower(dsn)
+	switch {
+	case strings.HasPrefix(lower, "postgres://") || strings.HasPrefix(lower, "postgresql://"):
+		return "postgres"
+	case strings.HasPrefix(lower, "mysql://"):
+		return "mysql"
+	case strings.HasPrefix(lower, "sqlite://") || strings.HasPrefix(lower, "file:"):
+		return "sqlite"
+	case strings.HasSuffix(lower, ".db") || strings.HasSuffix(lower, ".sqlite") || strings.HasSuffix(lower, ".sqlite3"):
+		return "sqlite"
+	case strings.Contains(lower, "@tcp("):
+		return "mysql"
+	}
+	if strings.Contains(dsn, "@") {
+		return "postgres"
+	}
+	return ""
 }

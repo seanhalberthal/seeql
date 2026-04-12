@@ -32,9 +32,9 @@ func TestNew(t *testing.T) {
 		}
 	})
 
-	t.Run("keyMode matches config standard", func(t *testing.T) {
-		if m.keyMode != KeyModeStandard {
-			t.Errorf("keyMode = %d, want KeyModeStandard (%d)", m.keyMode, KeyModeStandard)
+	t.Run("keyMode matches config vim", func(t *testing.T) {
+		if m.keyMode != KeyModeVim {
+			t.Errorf("keyMode = %d, want KeyModeVim (%d)", m.keyMode, KeyModeVim)
 		}
 	})
 
@@ -105,10 +105,10 @@ func TestNew(t *testing.T) {
 		}
 	})
 
-	t.Run("standard keymap is used", func(t *testing.T) {
-		// Verify that VimUp has no keys (standard mode)
-		if len(m.keyMap.VimUp.Keys()) != 0 {
-			t.Errorf("keyMap.VimUp should have no keys in standard mode, got %v", m.keyMap.VimUp.Keys())
+	t.Run("vim keymap is used", func(t *testing.T) {
+		// Verify that VimUp has keys (vim mode is default)
+		if len(m.keyMap.VimUp.Keys()) == 0 {
+			t.Error("keyMap.VimUp should have keys in vim mode")
 		}
 	})
 }
@@ -176,8 +176,8 @@ func TestNew_VimMode(t *testing.T) {
 func TestNew_WithConnections(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Connections = []config.SavedConnection{
-		{Name: "prod-pg", Adapter: "postgres", Host: "localhost", Port: 5432},
-		{Name: "local-sqlite", Adapter: "sqlite", File: "/tmp/test.db"},
+		{Name: "prod-pg", DSN: "postgres://localhost:5432/proddb"},
+		{Name: "local-sqlite", DSN: "/tmp/test.db"},
 	}
 	m := New(cfg, nil, nil)
 

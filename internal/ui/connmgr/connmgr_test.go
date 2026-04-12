@@ -15,7 +15,7 @@ func init() {
 
 func TestNew(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "test-pg", Adapter: "postgres", Host: "localhost"},
+		{Name: "test-pg", DSN: "postgres://localhost/testdb"},
 	}
 	m := New(conns)
 
@@ -86,8 +86,8 @@ func TestSetSize(t *testing.T) {
 
 func TestConnections(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "a"},
-		{Name: "b"},
+		{Name: "a", DSN: "postgres://a"},
+		{Name: "b", DSN: "postgres://b"},
 	}
 	m := New(conns)
 
@@ -99,7 +99,7 @@ func TestConnections(t *testing.T) {
 
 func TestSetConnections(t *testing.T) {
 	m := New(nil)
-	m.SetConnections([]config.SavedConnection{{Name: "new"}})
+	m.SetConnections([]config.SavedConnection{{Name: "new", DSN: "postgres://new"}})
 
 	if len(m.connections) != 1 {
 		t.Fatalf("expected 1 connection, got %d", len(m.connections))
@@ -119,7 +119,7 @@ func TestView_NotVisible(t *testing.T) {
 
 func TestView_ListState(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "test-db", Adapter: "postgres", Host: "localhost"},
+		{Name: "test-db", DSN: "postgres://localhost/testdb"},
 	}
 	m := New(conns)
 	m.Show()
@@ -154,31 +154,27 @@ func TestView_TestingState(t *testing.T) {
 
 func TestUpdateList_Navigation_JK(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "a"},
-		{Name: "b"},
+		{Name: "a", DSN: "postgres://a"},
+		{Name: "b", DSN: "postgres://b"},
 	}
 	m := New(conns)
 	m.Show()
 
-	// Move down with j.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	if m.cursor != 1 {
 		t.Fatalf("expected cursor=1 after j, got %d", m.cursor)
 	}
 
-	// Move down to "New Connection" row.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	if m.cursor != 2 {
 		t.Fatalf("expected cursor=2 after j, got %d", m.cursor)
 	}
 
-	// Move up with k.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	if m.cursor != 1 {
 		t.Fatalf("expected cursor=1 after k, got %d", m.cursor)
 	}
 
-	// Move up at boundary.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	if m.cursor != 0 {
@@ -187,7 +183,10 @@ func TestUpdateList_Navigation_JK(t *testing.T) {
 }
 
 func TestUpdateList_Navigation_ArrowKeys(t *testing.T) {
-	conns := []config.SavedConnection{{Name: "a"}, {Name: "b"}}
+	conns := []config.SavedConnection{
+		{Name: "a", DSN: "postgres://a"},
+		{Name: "b", DSN: "postgres://b"},
+	}
 	m := New(conns)
 	m.Show()
 
@@ -217,7 +216,7 @@ func TestUpdateList_NewConnection(t *testing.T) {
 
 func TestUpdateList_EditConnection(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "test", Adapter: "sqlite", Host: "localhost"},
+		{Name: "test", DSN: "postgres://localhost/test"},
 	}
 	m := New(conns)
 	m.Show()
@@ -232,12 +231,15 @@ func TestUpdateList_EditConnection(t *testing.T) {
 	if m.inputs[fieldName].Value() != "test" {
 		t.Fatalf("expected name field = 'test', got %q", m.inputs[fieldName].Value())
 	}
+	if m.inputs[fieldDSN].Value() != "postgres://localhost/test" {
+		t.Fatalf("expected DSN field loaded, got %q", m.inputs[fieldDSN].Value())
+	}
 }
 
 func TestUpdateList_DeleteConnection(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "a"},
-		{Name: "b"},
+		{Name: "a", DSN: "postgres://a"},
+		{Name: "b", DSN: "postgres://b"},
 	}
 	m := New(conns)
 	m.Show()
@@ -252,7 +254,7 @@ func TestUpdateList_DeleteConnection(t *testing.T) {
 }
 
 func TestUpdateList_DeleteLastConnection(t *testing.T) {
-	conns := []config.SavedConnection{{Name: "only"}}
+	conns := []config.SavedConnection{{Name: "only", DSN: "postgres://only"}}
 	m := New(conns)
 	m.Show()
 
@@ -264,7 +266,7 @@ func TestUpdateList_DeleteLastConnection(t *testing.T) {
 
 func TestUpdateList_Enter_Connect(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "test", Adapter: "postgres", DSN: "postgres://localhost/test"},
+		{Name: "test", DSN: "postgres://localhost/test"},
 	}
 	m := New(conns)
 	m.Show()
@@ -360,12 +362,10 @@ func TestUpdateForm_SaveNew(t *testing.T) {
 	m := New(nil)
 	m.Show()
 
-	// Enter form for new connection.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	m.inputs[fieldName].SetValue("new-conn")
-	m.inputs[fieldAdapter].SetValue("sqlite")
+	m.inputs[fieldDSN].SetValue("postgres://localhost/newdb")
 
-	// Save with ctrl+s.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	if m.state != StateList {
 		t.Fatalf("expected StateList after save, got %d", m.state)
@@ -376,18 +376,36 @@ func TestUpdateForm_SaveNew(t *testing.T) {
 	if m.connections[0].Name != "new-conn" {
 		t.Fatalf("expected name 'new-conn', got %q", m.connections[0].Name)
 	}
+	if m.connections[0].DSN != "postgres://localhost/newdb" {
+		t.Fatalf("expected DSN set, got %q", m.connections[0].DSN)
+	}
+}
+
+func TestUpdateForm_SaveRequiresDSN(t *testing.T) {
+	m := New(nil)
+	m.Show()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m.inputs[fieldName].SetValue("no-dsn")
+	// Leave DSN empty
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if m.state != StateForm {
+		t.Fatalf("expected to stay in StateForm when DSN is empty, got %d", m.state)
+	}
+	if !m.isError {
+		t.Fatal("expected error message when DSN is empty")
+	}
 }
 
 func TestUpdateForm_SaveEdit(t *testing.T) {
-	conns := []config.SavedConnection{{Name: "old"}}
+	conns := []config.SavedConnection{{Name: "old", DSN: "postgres://old"}}
 	m := New(conns)
 	m.Show()
 
-	// Edit connection.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
 	m.inputs[fieldName].SetValue("updated")
 
-	// Save.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	if len(m.connections) != 1 {
 		t.Fatalf("expected 1 connection after edit save, got %d", len(m.connections))
@@ -408,37 +426,14 @@ func TestUpdate_NotVisible(t *testing.T) {
 func TestFormToConnection(t *testing.T) {
 	m := New(nil)
 	m.inputs[fieldName].SetValue("test")
-	m.inputs[fieldAdapter].SetValue("postgres")
-	m.inputs[fieldHost].SetValue("localhost")
-	m.inputs[fieldPort].SetValue("5432")
-	m.inputs[fieldUser].SetValue("admin")
-	m.inputs[fieldPassword].SetValue("secret")
-	m.inputs[fieldDatabase].SetValue("mydb")
-	m.inputs[fieldFile].SetValue("/tmp/test.db")
 	m.inputs[fieldDSN].SetValue("postgres://admin:secret@localhost:5432/mydb")
 
 	conn := m.formToConnection()
 	if conn.Name != "test" {
 		t.Fatalf("expected name 'test', got %q", conn.Name)
 	}
-	if conn.Port != 5432 {
-		t.Fatalf("expected port 5432, got %d", conn.Port)
-	}
-	if conn.Database != "mydb" {
-		t.Fatalf("expected database 'mydb', got %q", conn.Database)
-	}
-	if conn.File != "/tmp/test.db" {
-		t.Fatalf("expected file '/tmp/test.db', got %q", conn.File)
-	}
-}
-
-func TestFormToConnection_InvalidPort(t *testing.T) {
-	m := New(nil)
-	m.inputs[fieldPort].SetValue("not-a-number")
-
-	conn := m.formToConnection()
-	if conn.Port != 0 {
-		t.Fatalf("expected port=0 for invalid port, got %d", conn.Port)
+	if conn.DSN != "postgres://admin:secret@localhost:5432/mydb" {
+		t.Fatalf("expected DSN, got %q", conn.DSN)
 	}
 }
 
@@ -499,7 +494,7 @@ func TestUpdateTesting_Escape(t *testing.T) {
 func TestClearForm(t *testing.T) {
 	m := New(nil)
 	m.inputs[fieldName].SetValue("something")
-	m.inputs[fieldAdapter].SetValue("postgres")
+	m.inputs[fieldDSN].SetValue("postgres://localhost")
 	m.message = "old message"
 
 	m.clearForm()
@@ -507,8 +502,8 @@ func TestClearForm(t *testing.T) {
 	if m.inputs[fieldName].Value() != "" {
 		t.Fatalf("expected name cleared, got %q", m.inputs[fieldName].Value())
 	}
-	if m.inputs[fieldAdapter].Value() != "" {
-		t.Fatalf("expected adapter cleared, got %q", m.inputs[fieldAdapter].Value())
+	if m.inputs[fieldDSN].Value() != "" {
+		t.Fatalf("expected DSN cleared, got %q", m.inputs[fieldDSN].Value())
 	}
 	if m.formFocus != 0 {
 		t.Fatalf("expected formFocus=0 after clear, got %d", m.formFocus)
@@ -521,15 +516,8 @@ func TestClearForm(t *testing.T) {
 func TestLoadIntoForm(t *testing.T) {
 	m := New(nil)
 	conn := config.SavedConnection{
-		Name:     "mydb",
-		Adapter:  "mysql",
-		Host:     "db.example.com",
-		Port:     3306,
-		User:     "admin",
-		Password: "secret",
-		Database: "production",
-		File:     "/tmp/production.db",
-		DSN:      "mysql://admin:secret@db.example.com:3306/production",
+		Name: "mydb",
+		DSN:  "postgres://admin:secret@db.example.com:3306/production",
 	}
 
 	m.loadIntoForm(conn)
@@ -537,28 +525,7 @@ func TestLoadIntoForm(t *testing.T) {
 	if m.inputs[fieldName].Value() != "mydb" {
 		t.Fatalf("expected name 'mydb', got %q", m.inputs[fieldName].Value())
 	}
-	if m.inputs[fieldAdapter].Value() != "mysql" {
-		t.Fatalf("expected adapter 'mysql', got %q", m.inputs[fieldAdapter].Value())
-	}
-	if m.inputs[fieldHost].Value() != "db.example.com" {
-		t.Fatalf("expected host 'db.example.com', got %q", m.inputs[fieldHost].Value())
-	}
-	if m.inputs[fieldPort].Value() != "3306" {
-		t.Fatalf("expected port '3306', got %q", m.inputs[fieldPort].Value())
-	}
-	if m.inputs[fieldFile].Value() != "/tmp/production.db" {
-		t.Fatalf("expected file '/tmp/production.db', got %q", m.inputs[fieldFile].Value())
-	}
-}
-
-func TestLoadIntoForm_ZeroPort(t *testing.T) {
-	m := New(nil)
-	conn := config.SavedConnection{Name: "test", Port: 0}
-
-	m.loadIntoForm(conn)
-
-	// Port 0 should not set the port field.
-	if m.inputs[fieldPort].Value() != "" {
-		t.Fatalf("expected empty port for port=0, got %q", m.inputs[fieldPort].Value())
+	if m.inputs[fieldDSN].Value() != "postgres://admin:secret@db.example.com:3306/production" {
+		t.Fatalf("expected DSN loaded, got %q", m.inputs[fieldDSN].Value())
 	}
 }

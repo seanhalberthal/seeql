@@ -101,10 +101,7 @@ func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Mode
 		km = StandardKeyMap()
 	}
 
-	// Set theme
-	if t := theme.Get(cfg.Theme); t != nil {
-		theme.Current = t
-	}
+	// Theme is now a single adaptive theme — no selection needed.
 
 	compEngine := completion.NewEngine("sql")
 

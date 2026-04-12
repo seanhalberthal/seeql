@@ -54,13 +54,6 @@ type Model struct {
 
 const (
 	fieldName = iota
-	fieldAdapter
-	fieldHost
-	fieldPort
-	fieldUser
-	fieldPassword
-	fieldDatabase
-	fieldFile
 	fieldDSN
 	fieldCount
 )
@@ -78,16 +71,9 @@ func New(connections []config.SavedConnection) Model {
 func (m *Model) initForm() {
 	m.inputs = make([]textinput.Model, fieldCount)
 
-	labels := []string{"Name", "Adapter", "Host", "Port", "User", "Password", "Database", "File", "DSN"}
+	labels := []string{"Name", "DSN"}
 	placeholders := []string{
-		"my-database",
-		"postgres|mysql|sqlite",
-		"localhost",
-		"5432",
-		"",
-		"",
-		"",
-		"/path/to/database.db",
+		"my-database (optional)",
 		"postgres://user:pass@host:5432/db",
 	}
 
@@ -95,10 +81,7 @@ func (m *Model) initForm() {
 		t := textinput.New()
 		t.Prompt = labels[i] + ": "
 		t.Placeholder = placeholders[i]
-		if i == fieldPassword {
-			t.EchoMode = textinput.EchoPassword
-		}
-		t.Width = 40
+		t.Width = 50
 		m.inputs[i] = t
 	}
 }
@@ -140,15 +123,12 @@ func (m Model) updateList(msg tea.Msg) (Model, tea.Cmd) {
 		case "enter":
 			if m.cursor < len(m.connections) {
 				conn := m.connections[m.cursor]
-				dsn := conn.DSN
-				if dsn == "" {
-					dsn = conn.BuildDSN()
-				}
+				adapterName := adapter.DetectAdapter(conn.DSN)
 				m.visible = false
 				return m, func() tea.Msg {
 					return ConnectRequestMsg{
-						AdapterName: conn.Adapter,
-						DSN:         dsn,
+						AdapterName: adapterName,
+						DSN:         conn.DSN,
 					}
 				}
 			}
@@ -205,6 +185,11 @@ func (m Model) updateForm(msg tea.Msg) (Model, tea.Cmd) {
 			return m, textinput.Blink
 		case "ctrl+s":
 			conn := m.formToConnection()
+			if conn.DSN == "" {
+				m.message = "DSN is required"
+				m.isError = true
+				return m, nil
+			}
 			if m.editing >= 0 && m.editing < len(m.connections) {
 				m.connections[m.editing] = conn
 			} else {
@@ -250,17 +235,14 @@ type testResultMsg struct{ err error }
 
 func (m Model) testConnection(conn config.SavedConnection) tea.Cmd {
 	return func() tea.Msg {
-		dsn := conn.DSN
-		if dsn == "" {
-			dsn = conn.BuildDSN()
-		}
-		a, ok := adapter.Registry[conn.Adapter]
+		adapterName := adapter.DetectAdapter(conn.DSN)
+		a, ok := adapter.Registry[adapterName]
 		if !ok {
-			return testResultMsg{err: fmt.Errorf("unknown adapter: %s", conn.Adapter)}
+			return testResultMsg{err: fmt.Errorf("unknown adapter for DSN (detected: %q)", adapterName)}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		c, err := a.Connect(ctx, dsn)
+		c, err := a.Connect(ctx, conn.DSN)
 		if err != nil {
 			return testResultMsg{err: err}
 		}
@@ -294,7 +276,11 @@ func (m Model) viewList(th *theme.Theme) string {
 
 	var lines []string
 	for i, conn := range m.connections {
-		line := fmt.Sprintf("  %s  (%s)", conn.Name, conn.DisplayString())
+		label := conn.DSN
+		if conn.Name != "" {
+			label = conn.Name + "  (" + conn.DSN + ")"
+		}
+		line := "  " + label
 		if i == m.cursor {
 			lines = append(lines, th.SidebarSelected.Render(line))
 		} else {
@@ -370,33 +356,15 @@ func (m *Model) clearForm() {
 
 func (m *Model) loadIntoForm(conn config.SavedConnection) {
 	m.inputs[fieldName].SetValue(conn.Name)
-	m.inputs[fieldAdapter].SetValue(conn.Adapter)
-	m.inputs[fieldHost].SetValue(conn.Host)
-	if conn.Port > 0 {
-		m.inputs[fieldPort].SetValue(fmt.Sprintf("%d", conn.Port))
-	}
-	m.inputs[fieldUser].SetValue(conn.User)
-	m.inputs[fieldPassword].SetValue(conn.Password)
-	m.inputs[fieldDatabase].SetValue(conn.Database)
-	m.inputs[fieldFile].SetValue(conn.File)
 	m.inputs[fieldDSN].SetValue(conn.DSN)
 	m.formFocus = 0
 	m.message = ""
 }
 
 func (m Model) formToConnection() config.SavedConnection {
-	port := 0
-	fmt.Sscanf(m.inputs[fieldPort].Value(), "%d", &port)
 	return config.SavedConnection{
-		Name:     m.inputs[fieldName].Value(),
-		Adapter:  m.inputs[fieldAdapter].Value(),
-		Host:     m.inputs[fieldHost].Value(),
-		Port:     port,
-		User:     m.inputs[fieldUser].Value(),
-		Password: m.inputs[fieldPassword].Value(),
-		Database: m.inputs[fieldDatabase].Value(),
-		File:     m.inputs[fieldFile].Value(),
-		DSN:      m.inputs[fieldDSN].Value(),
+		Name: m.inputs[fieldName].Value(),
+		DSN:  m.inputs[fieldDSN].Value(),
 	}
 }
 
