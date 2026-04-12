@@ -28,7 +28,7 @@ const (
 type connectFocus int
 
 const (
-	focusDSN  connectFocus = iota
+	focusDSN connectFocus = iota
 	focusList
 )
 
