@@ -36,14 +36,14 @@ Bubble Tea (Elm Architecture) TUI. Root model in `internal/app/app.go`.
 
 **Message routing priority in `Update()`:**
 1. `tea.WindowSizeMsg` → recalculate layout
-2. `tea.KeyMsg` → connection manager (if visible, blocks all input) → help overlay (if visible, blocks all input) → autocomplete (if visible) → global keys → focused pane handler
+2. `tea.KeyMsg` → connection manager (if visible, blocks all input) → history browser (if visible, blocks all input) → floating editor (if visible, blocks all input) → help overlay (if visible, blocks all input) → autocomplete (if visible) → global keys → focused pane handler
 3. Application messages: Connect, SchemaLoaded, QueryResult, NewTab, etc.
 
-**Focus system:** Three panes (`PaneSidebar`, `PaneEditor`, `PaneResults`). Tab/Shift+Tab cycles. Alt+1/2/3 jumps directly. Each pane's component has `Focus()`/`Blur()` methods that control whether it processes input.
+**Focus system:** Two panes (`PaneSidebar`, `PaneResults`). Tab cycles between them. The editor is a floating overlay — when visible (`showEditor`), it captures all keyboard input. `setFocus()` blurs the old pane and focuses the new one.
 
 **Multi-tab state:** `tabStates map[int]*TabState` — each tab owns its own `editor.Model` and `results.Model`. Always nil-check `activeTabState()`. `results.New(tabID)` takes the tab ID for message routing.
 
-**Layout system:** Tab bar (top) + status bar (bottom) + main area. Main area splits into sidebar (left, fixed width) + editor/results (right, percentage-based vertical split). Resizable via Ctrl+Arrow keys. Sidebar: 15–50% width. Editor height: 20–80%.
+**Layout system:** Tab bar (top) + status bar (bottom) + main area. Main area is sidebar (left, fixed width) + results table (fills remaining space). Editor is a floating overlay centred on screen (`openEditor()`/`closeEditor()`). Sidebar resizable via Ctrl+Left/Right.
 
 **Border width accounting:** lipgloss `.Width(w)` sets *content* width; borders add 2 chars on top. All components must use `.Width(m.width - 2)` to fit within their allocated space.
 
@@ -126,7 +126,9 @@ Two layers with different word-break rules:
 
 **Atomic config writes:** `Config.Save()` writes to a temp file in the same directory, then `os.Rename()` for crash-safe atomicity. Temp file is cleaned up on any error.
 
-**DSN credential escaping:** `SavedConnection.BuildDSN()` uses `url.UserPassword()` for postgres (handles all special chars) and `url.QueryEscape()` for mysql passwords. The `main.go` `buildDSN()` function mirrors this.
+**Simplified connections:** `SavedConnection` has just `Name` (optional) and `DSN` (required). Adapter is auto-detected from the DSN via `adapter.DetectAdapter()`. No more individual host/port/user/password/database fields.
+
+**Config format:** JSON (`~/.config/seeql/config.json`). Uses `encoding/json` with `json.MarshalIndent` for human-readable output.
 
 **Config/history permissions:** Directories created with `0o700`, files with `0o600` (config may contain passwords).
 
