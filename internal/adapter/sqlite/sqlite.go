@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/schema"
 
 	_ "modernc.org/sqlite"
 )

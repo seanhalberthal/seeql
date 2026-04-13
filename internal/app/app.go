@@ -12,22 +12,23 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/audit"
-	"github.com/sadopc/gotermsql/internal/completion"
-	"github.com/sadopc/gotermsql/internal/config"
-	"github.com/sadopc/gotermsql/internal/history"
-	"github.com/sadopc/gotermsql/internal/schema"
-	"github.com/sadopc/gotermsql/internal/theme"
-	"github.com/sadopc/gotermsql/internal/ui/autocomplete"
-	"github.com/sadopc/gotermsql/internal/ui/connmgr"
-	"github.com/sadopc/gotermsql/internal/ui/editor"
-	"github.com/sadopc/gotermsql/internal/ui/historybrowser"
-	"github.com/sadopc/gotermsql/internal/ui/results"
-	"github.com/sadopc/gotermsql/internal/ui/sidebar"
-	"github.com/sadopc/gotermsql/internal/ui/statusbar"
-	"github.com/sadopc/gotermsql/internal/ui/tabs"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/audit"
+	"github.com/seanhalberthal/seeql/internal/completion"
+	"github.com/seanhalberthal/seeql/internal/config"
+	"github.com/seanhalberthal/seeql/internal/history"
+	"github.com/seanhalberthal/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/ui/autocomplete"
+	"github.com/seanhalberthal/seeql/internal/ui/connmgr"
+	"github.com/seanhalberthal/seeql/internal/ui/editor"
+	"github.com/seanhalberthal/seeql/internal/ui/historybrowser"
+	"github.com/seanhalberthal/seeql/internal/ui/results"
+	"github.com/seanhalberthal/seeql/internal/ui/sidebar"
+	"github.com/seanhalberthal/seeql/internal/ui/statusbar"
+	"github.com/seanhalberthal/seeql/internal/ui/tabs"
 )
 
 // TabState holds per-tab state.
@@ -41,11 +42,12 @@ type TabState struct {
 // Model is the root application model.
 type Model struct {
 	// Layout
-	width        int
-	height       int
-	sidebarWidth int
-	editorHeight int // percentage of main area for editor (rest for results)
-	showSidebar  bool
+	width            int
+	height           int
+	sidebarWidth     int
+	sidebarExpanded  bool
+	sidebarNormWidth int // width before expand
+	showSidebar      bool
 
 	// Focus
 	focusedPane Pane
@@ -76,15 +78,14 @@ type Model struct {
 	dsn     string
 
 	// Keybinding
-	keyMap   KeyMap
-	keyMode  KeyMode
-	vimState VimState
+	keyMap KeyMap
 
 	// Schema loading
 	schemaCancel context.CancelFunc
 
 	// State
 	showHelp       bool
+	showEditor     bool
 	showConnMgr    bool
 	executing      bool
 	executingTabID int
@@ -93,26 +94,12 @@ type Model struct {
 
 // New creates a new app model.
 func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Model {
-	keyMode := ParseKeyMode(cfg.KeyMode)
-	var km KeyMap
-	if keyMode == KeyModeVim {
-		km = VimKeyMap()
-	} else {
-		km = StandardKeyMap()
-	}
-
-	// Set theme
-	if t := theme.Get(cfg.Theme); t != nil {
-		theme.Current = t
-	}
-
 	compEngine := completion.NewEngine("sql")
 
 	m := Model{
 		sidebarWidth: 30,
-		editorHeight: 50,
 		showSidebar:  true,
-		focusedPane:  PaneEditor,
+		focusedPane:  PaneSidebar,
 
 		sidebar:     sidebar.New(),
 		tabs:        tabs.New(),
@@ -126,20 +113,24 @@ func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Mode
 		cfg:        cfg,
 		history:    hist,
 		audit:      auditLog,
-		keyMap:     km,
-		keyMode:    keyMode,
+		keyMap:     StandardKeyMap(),
 	}
 
 	// Initialize first tab state
 	ed := editor.New(0)
-	ed.Focus()
+	res := results.New(0)
 	m.tabStates[0] = &TabState{
 		Editor:  ed,
-		Results: results.New(0),
+		Results: res,
 	}
+	m.sidebar.Focus()
 
-	m.statusbar.SetKeyMode(keyMode)
 	return m
+}
+
+// SetVersion sets the application version displayed in the status bar.
+func (m *Model) SetVersion(v string) {
+	m.statusbar.SetVersion(v)
 }
 
 // Init initializes the application.
@@ -187,12 +178,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Floating editor overlay captures input when visible
+		if m.showEditor {
+			return m, m.handleEditorOverlayKey(msg)
+		}
+
 		// Autocomplete takes priority when visible
 		if m.autocomp.Visible() {
 			switch msg.String() {
 			case "up", "down", "enter", "tab", "esc", "ctrl+p", "ctrl+n":
 				var cmd tea.Cmd
 				m.autocomp, cmd = m.autocomp.Update(msg)
+				if cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				return m, tea.Batch(cmds...)
+			}
+		}
+
+		// When the results filter input is active, route keys directly
+		// to the results pane so typed characters aren't intercepted by
+		// global keybindings (e.g. "e" opening the editor, "q" quitting).
+		if m.focusedPane == PaneResults {
+			if ts := m.activeTabState(); ts != nil && ts.Results.Filtering() {
+				var cmd tea.Cmd
+				ts.Results, cmd = ts.Results.Update(msg)
 				if cmd != nil {
 					cmds = append(cmds, cmd)
 				}
@@ -339,6 +349,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			ts.Results.SetLoading(false)
 			if msg.Result != nil {
 				ts.Results.SetResults(msg.Result)
+				m.setFocus(PaneResults)
 			}
 			// Save to history
 			if m.history != nil && m.conn != nil && msg.Result != nil {
@@ -378,6 +389,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		ts.Results.SetLoading(false)
 		ts.Results.SetQueryDuration(msg.Duration)
 		ts.Results.SetIterator(msg.Iterator)
+		m.setFocus(PaneResults)
 		cmds = append(cmds, results.FetchFirstPage(msg.Iterator, msg.TabID))
 		// Save to history
 		if m.history != nil && m.conn != nil {
@@ -446,7 +458,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Results: results.New(tabID),
 		}
 		m.updateLayout()
-		m.focusedPane = PaneEditor
 
 	case CloseTabMsg:
 		if m.executing && msg.TabID == m.executingTabID {
@@ -477,20 +488,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateLayout()
 		m.setFocus(m.focusedPane)
 
-	case ToggleKeyModeMsg:
-		if m.keyMode == KeyModeStandard {
-			m.keyMode = KeyModeVim
-			m.keyMap = VimKeyMap()
-			m.vimState = VimNormal
-		} else {
-			m.keyMode = KeyModeStandard
-			m.keyMap = StandardKeyMap()
-		}
-		m.statusbar.SetKeyMode(m.keyMode)
-		var sbCmd tea.Cmd
-		m.statusbar, sbCmd = m.statusbar.Update(msg)
-		cmds = append(cmds, sbCmd)
-
 	case autocomplete.SelectedMsg:
 		ts := m.activeTabState()
 		if ts != nil {
@@ -501,6 +498,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		ts := m.activeTabState()
 		if ts != nil {
 			ts.Editor.SetValue(msg.Query)
+			if m.conn != nil {
+				tabID := m.tabs.ActiveID()
+				query := msg.Query
+				cmds = append(cmds, func() tea.Msg {
+					return ExecuteQueryMsg{Query: query, TabID: tabID}
+				})
+			}
 		}
 
 	case connmgr.ConnectRequestMsg:
@@ -538,6 +542,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 
+	case results.ClearYankMsg:
+		ts := m.tabStates[msg.TabID]
+		if ts != nil {
+			ts.Results, _ = ts.Results.Update(msg)
+		}
+
+	case StatusMsg:
+		var sbCmd tea.Cmd
+		m.statusbar, sbCmd = m.statusbar.Update(msg)
+		cmds = append(cmds, sbCmd)
+
 	case statusbar.ClearStatusMsg:
 		m.statusbar, _ = m.statusbar.Update(msg)
 	}
@@ -547,7 +562,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 	switch {
-	case msg.String() == "ctrl+q":
+	case msg.String() == "ctrl+q" || msg.String() == "q":
 		m.quitting = true
 		if m.cancelFunc != nil {
 			m.cancelFunc()
@@ -589,11 +604,11 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		m.showHelp = !m.showHelp
 		return nil
 
-	case msg.String() == "f2":
-		return func() tea.Msg { return ToggleKeyModeMsg{} }
-
-	case msg.String() == "ctrl+b":
+	case msg.String() == "ctrl+s":
 		m.showSidebar = !m.showSidebar
+		if !m.showSidebar && m.focusedPane == PaneSidebar {
+			m.setFocus(PaneResults)
+		}
 		m.updateLayout()
 		return nil
 
@@ -611,6 +626,10 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		m.connMgr.Show()
 		return nil
 
+	case msg.String() == "e":
+		m.openEditor()
+		return func() tea.Msg { return nil }
+
 	case msg.String() == "ctrl+h":
 		if m.histBrowser.Visible() {
 			m.histBrowser.Hide()
@@ -622,17 +641,17 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 	case msg.String() == "ctrl+t":
 		return func() tea.Msg { return NewTabMsg{} }
 
-	case msg.String() == "ctrl+w":
+	case msg.String() == "X":
 		tabID := m.tabs.ActiveID()
 		return func() tea.Msg { return CloseTabMsg{TabID: tabID} }
 
-	case msg.String() == "ctrl+]":
+	case msg.String() == "]":
 		return m.tabs.NextTab()
 
-	case msg.String() == "ctrl+[":
+	case msg.String() == "[":
 		return m.tabs.PrevTab()
 
-	case msg.String() == "tab" && m.focusedPane != PaneEditor:
+	case msg.String() == "tab":
 		m.cycleFocus(1)
 		return nil
 
@@ -641,14 +660,12 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case msg.String() == "alt+1":
-		m.setFocus(PaneSidebar)
+		if m.showSidebar {
+			m.setFocus(PaneSidebar)
+		}
 		return nil
 
 	case msg.String() == "alt+2":
-		m.setFocus(PaneEditor)
-		return nil
-
-	case msg.String() == "alt+3":
 		m.setFocus(PaneResults)
 		return nil
 
@@ -666,19 +683,18 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 
-	case msg.String() == "ctrl+up":
-		if m.editorHeight > 20 {
-			m.editorHeight -= 5
-			m.updateLayout()
+	case msg.String() == "ctrl+f":
+		if m.sidebarExpanded {
+			m.sidebarWidth = m.sidebarNormWidth
+			m.sidebarExpanded = false
+		} else {
+			m.sidebarNormWidth = m.sidebarWidth
+			m.sidebarWidth = m.width / 2
+			m.sidebarExpanded = true
 		}
+		m.updateLayout()
 		return nil
 
-	case msg.String() == "ctrl+down":
-		if m.editorHeight < 80 {
-			m.editorHeight += 5
-			m.updateLayout()
-		}
-		return nil
 	}
 	return nil
 }
@@ -693,36 +709,6 @@ func (m *Model) handleFocusedPaneKey(msg tea.KeyMsg) tea.Cmd {
 	case PaneSidebar:
 		var cmd tea.Cmd
 		m.sidebar, cmd = m.sidebar.Update(msg)
-		return cmd
-
-	case PaneEditor:
-		// Execute query on ctrl+enter, F5, or ctrl+g
-		if msg.String() == "ctrl+enter" || msg.String() == "f5" || msg.String() == "ctrl+g" {
-			query := ts.Editor.Value()
-			if query != "" {
-				tabID := m.tabs.ActiveID()
-				return func() tea.Msg { return ExecuteQueryMsg{Query: query, TabID: tabID} }
-			}
-			return nil
-		}
-
-		// Trigger autocomplete on ctrl+space
-		if msg.String() == "ctrl+@" || msg.String() == "ctrl+ " {
-			text := ts.Editor.Value()
-			// Approximate cursor position from textarea
-			m.autocomp.TriggerForced(text, len(text))
-			return nil
-		}
-
-		var cmd tea.Cmd
-		ts.Editor, cmd = ts.Editor.Update(msg)
-
-		// Trigger autocomplete after typing
-		if isTypingKey(msg) {
-			text := ts.Editor.Value()
-			m.autocomp.Trigger(text, len(text))
-		}
-
 		return cmd
 
 	case PaneResults:
@@ -759,64 +745,39 @@ func (m Model) View() string {
 	}
 
 	// Editor + Results
+	// Results fill the full main area
 	ts := m.activeTabState()
-	var editorView, resultsView string
-	if ts != nil {
-		editorH := mainHeight * m.editorHeight / 100
-		resultsH := mainHeight - editorH
-		if editorH < 3 {
-			editorH = 3
-		}
-		if resultsH < 3 {
-			resultsH = 3
-		}
-
-		mainWidth := m.width
-		if m.showSidebar {
-			mainWidth = m.width - m.sidebarWidth
-		}
-
-		ts.Editor.SetSize(mainWidth, editorH)
-		ts.Results.SetSize(mainWidth, resultsH)
-
-		editorView = ts.Editor.View()
-		resultsView = ts.Results.View()
-
-		// Autocomplete overlay - render within editor space to avoid pushing content off-screen
-		if m.autocomp.Visible() {
-			acView := m.autocomp.View()
-			acHeight := lipgloss.Height(acView)
-			editorLines := strings.Split(editorView, "\n")
-			if acHeight < len(editorLines) {
-				// Replace bottom lines of editor with autocomplete
-				editorLines = editorLines[:len(editorLines)-acHeight]
-				editorView = strings.Join(editorLines, "\n") + "\n" + acView
-			} else {
-				// Editor too small, just show autocomplete below first line
-				if len(editorLines) > 1 {
-					editorView = editorLines[0] + "\n" + acView
-				}
-			}
-		}
-	} else {
-		editorView = "No active tab"
-		resultsView = ""
+	var resultsView string
+	mainWidth := m.width
+	if m.showSidebar {
+		mainWidth = m.width - m.sidebarWidth
 	}
 
-	mainContent := lipgloss.JoinVertical(lipgloss.Left, editorView, resultsView)
+	if ts != nil {
+		ts.Results.SetSize(mainWidth, mainHeight)
+		resultsView = ts.Results.View()
+	} else {
+		resultsView = "No active tab"
+	}
 
-	// Sidebar + Main
+	// Sidebar + Results
 	var content string
 	if m.showSidebar {
 		m.sidebar.SetSize(m.sidebarWidth, mainHeight)
 		sidebarView := m.sidebar.View()
-		content = lipgloss.JoinHorizontal(lipgloss.Top, sidebarView, mainContent)
+		content = lipgloss.JoinHorizontal(lipgloss.Top, sidebarView, resultsView)
 	} else {
-		content = mainContent
+		content = resultsView
 	}
 
-	// Assemble full view
+	// Assemble base view
 	view := lipgloss.JoinVertical(lipgloss.Left, tabBar, content, statusBar)
+
+	// Floating editor overlay — composited on top of the base view
+	if m.showEditor && ts != nil {
+		editorOverlay := m.renderEditorOverlay(ts, mainWidth, mainHeight)
+		view = placeOverlay(view, editorOverlay, m.width, m.height)
+	}
 
 	// Help overlay — full-screen centered
 	if m.showHelp {
@@ -834,7 +795,6 @@ func (m Model) View() string {
 	// Connection manager overlay
 	if m.connMgr.Visible() {
 		connView := m.connMgr.View()
-		// Center the connection manager
 		centered := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, connView)
 		return clampViewHeight(centered, m.height)
 	}
@@ -842,13 +802,13 @@ func (m Model) View() string {
 	return clampViewHeight(view, m.height)
 }
 
-// heightOffset returns the height adjustment from the GOTERMSQL_HEIGHT_OFFSET
+// heightOffset returns the height adjustment from the SEEQL_HEIGHT_OFFSET
 // environment variable. Neovim's libvterm may report a terminal height that is
 // 1 row larger than the actual renderable area, causing the first line to
-// scroll off-screen. The Neovim plugin sets GOTERMSQL_HEIGHT_OFFSET=-1 to
+// scroll off-screen. The Neovim plugin sets SEEQL_HEIGHT_OFFSET=-1 to
 // compensate.
 func heightOffset() int {
-	s := os.Getenv("GOTERMSQL_HEIGHT_OFFSET")
+	s := os.Getenv("SEEQL_HEIGHT_OFFSET")
 	if s == "" {
 		return 0
 	}
@@ -857,6 +817,53 @@ func heightOffset() int {
 		return 0
 	}
 	return n
+}
+
+// placeOverlay centres fg on top of bg, preserving the background where
+// the overlay doesn't cover. Both strings should be fully rendered.
+func placeOverlay(bg, fg string, totalW, totalH int) string {
+	bgLines := strings.Split(bg, "\n")
+	fgLines := strings.Split(fg, "\n")
+
+	fgW := lipgloss.Width(fg)
+	fgH := len(fgLines)
+
+	// Centre the overlay.
+	startX := (totalW - fgW) / 2
+	startY := (totalH - fgH) / 2
+	if startX < 0 {
+		startX = 0
+	}
+	if startY < 0 {
+		startY = 0
+	}
+
+	// Ensure bg has enough lines.
+	for len(bgLines) < totalH {
+		bgLines = append(bgLines, strings.Repeat(" ", totalW))
+	}
+
+	for i, fgLine := range fgLines {
+		bgRow := startY + i
+		if bgRow >= len(bgLines) {
+			break
+		}
+		bgLine := bgLines[bgRow]
+		bgW := ansi.StringWidth(bgLine)
+
+		// Pad background line if it's too short.
+		if bgW < totalW {
+			bgLine += strings.Repeat(" ", totalW-bgW)
+		}
+
+		// Splice: left part of bg + overlay line + right part of bg.
+		left := ansi.Truncate(bgLine, startX, "")
+		right := ansi.TruncateLeft(bgLine, startX+fgW, "")
+
+		bgLines[bgRow] = left + fgLine + right
+	}
+
+	return strings.Join(bgLines, "\n")
 }
 
 // clampViewHeight ensures the view does not exceed the terminal height.
@@ -894,17 +901,14 @@ func (m *Model) updateLayout() {
 
 	ts := m.activeTabState()
 	if ts != nil {
-		editorH := mainHeight * m.editorHeight / 100
-		resultsH := mainHeight - editorH
-		ts.Editor.SetSize(mainWidth, editorH)
-		ts.Results.SetSize(mainWidth, resultsH)
+		ts.Results.SetSize(mainWidth, mainHeight)
 	}
 }
 
 func (m *Model) cycleFocus(direction int) {
-	panes := []Pane{PaneEditor, PaneResults}
+	panes := []Pane{PaneResults}
 	if m.showSidebar {
-		panes = []Pane{PaneSidebar, PaneEditor, PaneResults}
+		panes = []Pane{PaneSidebar, PaneResults}
 	}
 
 	current := 0
@@ -924,10 +928,6 @@ func (m *Model) setFocus(pane Pane) {
 	switch m.focusedPane {
 	case PaneSidebar:
 		m.sidebar.Blur()
-	case PaneEditor:
-		if ts := m.activeTabState(); ts != nil {
-			ts.Editor.Blur()
-		}
 	case PaneResults:
 		if ts := m.activeTabState(); ts != nil {
 			ts.Results.Blur()
@@ -940,15 +940,143 @@ func (m *Model) setFocus(pane Pane) {
 	switch pane {
 	case PaneSidebar:
 		m.sidebar.Focus()
-	case PaneEditor:
-		if ts := m.activeTabState(); ts != nil {
-			ts.Editor.Focus()
-		}
 	case PaneResults:
 		if ts := m.activeTabState(); ts != nil {
 			ts.Results.Focus()
 		}
 	}
+}
+
+// openEditor shows the floating editor overlay and focuses the active tab's editor.
+func (m *Model) openEditor() {
+	m.showEditor = true
+	if ts := m.activeTabState(); ts != nil {
+		ts.Editor.Focus()
+	}
+}
+
+// closeEditor hides the floating editor overlay.
+func (m *Model) closeEditor() {
+	m.showEditor = false
+	m.autocomp.Dismiss()
+	if ts := m.activeTabState(); ts != nil {
+		ts.Editor.Blur()
+	}
+}
+
+// handleEditorOverlayKey processes keys when the floating editor overlay is visible.
+func (m *Model) handleEditorOverlayKey(msg tea.KeyMsg) tea.Cmd {
+	ts := m.activeTabState()
+	if ts == nil {
+		return nil
+	}
+
+	// Autocomplete takes priority when visible
+	if m.autocomp.Visible() {
+		switch msg.String() {
+		case "up", "down", "enter", "tab", "esc", "ctrl+p", "ctrl+n":
+			var cmd tea.Cmd
+			m.autocomp, cmd = m.autocomp.Update(msg)
+			return cmd
+		}
+	}
+
+	switch msg.String() {
+	case "esc":
+		m.closeEditor()
+		return nil
+
+	case "f5", "ctrl+g":
+		query := ts.Editor.Value()
+		if query != "" {
+			tabID := m.tabs.ActiveID()
+			m.closeEditor()
+			return func() tea.Msg { return ExecuteQueryMsg{Query: query, TabID: tabID} }
+		}
+		return nil
+
+	case "ctrl+h":
+		if m.histBrowser.Visible() {
+			m.histBrowser.Hide()
+		} else {
+			m.histBrowser.Show()
+		}
+		return nil
+
+	case "ctrl+@", "ctrl+ ":
+		text := ts.Editor.Value()
+		m.autocomp.TriggerForced(text, len(text))
+		return nil
+	}
+
+	// Pass all other keys to the editor
+	var cmd tea.Cmd
+	ts.Editor, cmd = ts.Editor.Update(msg)
+
+	// Trigger autocomplete after typing
+	if isTypingKey(msg) {
+		text := ts.Editor.Value()
+		m.autocomp.Trigger(text, len(text))
+	}
+
+	return cmd
+}
+
+// renderEditorOverlay renders the floating editor panel.
+func (m Model) renderEditorOverlay(ts *TabState, mainWidth, mainHeight int) string {
+	th := theme.Current
+
+	// Editor takes ~60% of the available area
+	editorW := mainWidth * 3 / 4
+	if editorW < 40 {
+		editorW = mainWidth - 4
+	}
+	editorH := mainHeight * 3 / 5
+	if editorH < 8 {
+		editorH = mainHeight - 4
+	}
+
+	// Size the editor component (border accounted for by the overlay)
+	ts.Editor.SetSize(editorW, editorH-3) // -3 for hint line + blank + border overhead
+	editorView := ts.Editor.ContentView()
+
+	// Autocomplete overlay — position just below the cursor line
+	if m.autocomp.Visible() {
+		acView := m.autocomp.View()
+		acHeight := lipgloss.Height(acView)
+		editorLines := strings.Split(editorView, "\n")
+
+		// Insert autocomplete below the cursor line (+1 to be after it)
+		insertAt := ts.Editor.CursorLine() + 1
+		if insertAt >= len(editorLines) {
+			insertAt = len(editorLines)
+		}
+		endAt := insertAt + acHeight
+		if endAt > len(editorLines) {
+			endAt = len(editorLines)
+		}
+
+		var result []string
+		result = append(result, editorLines[:insertAt]...)
+		result = append(result, strings.Split(acView, "\n")...)
+		if endAt < len(editorLines) {
+			result = append(result, editorLines[endAt:]...)
+		}
+		// Trim to original height so the overlay doesn't expand
+		if len(result) > len(editorLines) {
+			result = result[:len(editorLines)]
+		}
+		editorView = strings.Join(result, "\n")
+	}
+
+	hint := th.MutedText.Render("  F5: execute  esc: close")
+
+	content := lipgloss.JoinVertical(lipgloss.Left, editorView, "", hint)
+
+	return th.FocusedBorder.
+		Width(editorW).
+		Padding(0, 1).
+		Render(content)
 }
 
 func (m Model) activeTabState() *TabState {
@@ -976,92 +1104,83 @@ func (m *Model) connect(adapterName, dsn string) tea.Cmd {
 }
 
 func (m *Model) renderHelpScreen(th *theme.Theme) string {
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#569CD6")).
-		MarginBottom(1)
-
-	sectionStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#DCDCAA")).
-		MarginTop(1)
-
-	keyStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#CE9178"))
-
-	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#D4D4D4"))
-
-	mutedStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6A9955"))
+	titleStyle := th.DialogTitle.MarginBottom(1)
+	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3")).MarginTop(1)
+	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("2"))
+	descStyle := lipgloss.NewStyle()
 
 	line := func(key, desc string) string {
 		return fmt.Sprintf("  %s  %s", keyStyle.Render(fmt.Sprintf("%-16s", key)), descStyle.Render(desc))
 	}
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("  gotermsql - Keyboard Shortcuts"))
+	b.WriteString(titleStyle.Render("  seeql - Keyboard Shortcuts"))
 	b.WriteString("\n")
 
-	b.WriteString(sectionStyle.Render("  Query"))
+	b.WriteString(sectionStyle.Render("  Global"))
+	b.WriteString("\n")
+	b.WriteString(line("Tab", "Cycle focus: sidebar / results"))
+	b.WriteString("\n")
+	b.WriteString(line("e", "Open query editor"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+S", "Toggle sidebar"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+O", "Connection manager"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+R", "Refresh schema"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+E", "Export results to CSV"))
+	b.WriteString("\n")
+	b.WriteString(line("?", "This help screen"))
+	b.WriteString("\n")
+	b.WriteString(line("q / Ctrl+Q", "Quit"))
+	b.WriteString("\n")
+
+	b.WriteString(sectionStyle.Render("  Editor (floating)"))
 	b.WriteString("\n")
 	b.WriteString(line("F5 / Ctrl+G", "Execute query"))
 	b.WriteString("\n")
 	b.WriteString(line("Ctrl+C", "Cancel running query"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+Space", "Trigger autocomplete"))
+	b.WriteString(line("Ctrl+H", "Query history"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+E", "Export results"))
+	b.WriteString(line("Esc", "Close editor"))
 	b.WriteString("\n")
 
-	b.WriteString(sectionStyle.Render("  Navigation"))
+	b.WriteString(sectionStyle.Render("  Layout"))
 	b.WriteString("\n")
-	b.WriteString(line("Shift+Tab/Ctrl+J", "Switch pane"))
+	b.WriteString(line("Ctrl+←/→", "Resize sidebar"))
 	b.WriteString("\n")
-	b.WriteString(line("Alt+1 / 2 / 3", "Jump to sidebar / editor / results"))
+	b.WriteString(line("Ctrl+F", "Toggle sidebar half-width"))
+	b.WriteString("\n")
+
+	b.WriteString(sectionStyle.Render("  Sidebar"))
+	b.WriteString("\n")
+	b.WriteString(line("j / k", "Navigate up/down"))
+	b.WriteString("\n")
+	b.WriteString(line("l / Enter", "Expand node"))
+	b.WriteString("\n")
+	b.WriteString(line("h", "Collapse node"))
+	b.WriteString("\n")
+
+	b.WriteString(sectionStyle.Render("  Results"))
+	b.WriteString("\n")
+	b.WriteString(line("j / k", "Navigate rows"))
+	b.WriteString("\n")
+	b.WriteString(line("h / l", "Scroll columns"))
 	b.WriteString("\n")
 
 	b.WriteString(sectionStyle.Render("  Tabs"))
 	b.WriteString("\n")
 	b.WriteString(line("Ctrl+T", "New tab"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+W", "Close tab"))
+	b.WriteString(line("X", "Close tab"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+] / Ctrl+[", "Next / previous tab"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Application"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+O", "Connection manager"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+B", "Toggle sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+R", "Refresh schema"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+H", "Query history"))
-	b.WriteString("\n")
-	b.WriteString(line("F2", "Toggle vim / standard mode"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+Q", "Quit"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Resize Panes"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+Arrow keys", "Resize sidebar / editor split"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("Enter / Right", "Expand node / open table"))
-	b.WriteString("\n")
-	b.WriteString(line("Left", "Collapse node"))
-	b.WriteString("\n")
-	b.WriteString(line("Up / Down", "Navigate"))
+	b.WriteString(line("[ / ]", "Previous / next tab"))
 	b.WriteString("\n")
 
 	b.WriteString("\n")
-	b.WriteString(mutedStyle.Render("  Press ? / F1 / Esc to close"))
+	b.WriteString(th.MutedText.Render("  Press ? / F1 / Esc to close"))
 
 	return th.DialogBorder.Render(b.String())
 }
@@ -1277,20 +1396,21 @@ func (m *Model) exportResults() tea.Cmd {
 // sanitizeError strips credentials from error messages that may contain DSN URLs.
 func sanitizeError(msg string) string {
 	// Match postgres://user:pass@, mysql://user:pass@, etc.
-	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://", "duckdb://"} {
+	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://"} {
+		offset := 0
 		for {
-			idx := strings.Index(msg, prefix)
+			idx := strings.Index(msg[offset:], prefix)
 			if idx < 0 {
 				break
 			}
-			// Find the @ after the prefix
+			idx += offset // absolute position
 			rest := msg[idx+len(prefix):]
 			atIdx := strings.Index(rest, "@")
 			if atIdx < 0 {
 				break
 			}
-			// Replace user:pass portion with ***
 			msg = msg[:idx+len(prefix)] + "***" + msg[idx+len(prefix)+atIdx:]
+			offset = idx + len(prefix) + 4 // skip past "***@"
 		}
 	}
 	// MySQL driver format: user:pass@tcp(

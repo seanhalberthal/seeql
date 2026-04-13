@@ -47,12 +47,6 @@ var SQLiteKeywords = []string{
 	"INDEXED", "WITHOUT", "ROWID", "STRICT",
 }
 
-// DuckDBKeywords are additional keywords specific to DuckDB.
-var DuckDBKeywords = []string{
-	"PIVOT", "UNPIVOT", "SAMPLE", "USING", "QUALIFY", "COLUMNS", "STRUCT",
-	"LIST", "MAP", "HUGEINT", "UBIGINT", "UINTEGER",
-}
-
 // KeywordsForDialect returns CommonKeywords combined with dialect-specific keywords.
 func KeywordsForDialect(dialect string) []string {
 	result := make([]string, len(CommonKeywords))
@@ -65,8 +59,6 @@ func KeywordsForDialect(dialect string) []string {
 		result = append(result, MySQLKeywords...)
 	case "sqlite":
 		result = append(result, SQLiteKeywords...)
-	case "duckdb":
-		result = append(result, DuckDBKeywords...)
 	}
 
 	return result

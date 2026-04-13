@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	appmsg "github.com/sadopc/gotermsql/internal/msg"
-	"github.com/sadopc/gotermsql/internal/theme"
+	appmsg "github.com/seanhalberthal/seeql/internal/msg"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 // ClearStatusMsg is sent after a timeout to revert the status bar to key hints.
@@ -23,21 +23,19 @@ type Model struct {
 	dsn          string
 	queryTime    time.Duration
 	rowCount     int64
-	keyMode      appmsg.KeyMode
-	vimState     appmsg.VimState
 	message      string
 	isError      bool
 	clearGen     uint64
 	cursorLine   int
 	cursorCol    int
 	connected    bool
+	version      string
 }
 
 // New creates a new status bar.
 func New() Model {
 	return Model{
 		rowCount: -1,
-		keyMode:  appmsg.KeyModeStandard,
 	}
 }
 
@@ -115,12 +113,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.message = ""
 		m.isError = false
 
-	case appmsg.ToggleKeyModeMsg:
-		if m.keyMode == appmsg.KeyModeStandard {
-			m.keyMode = appmsg.KeyModeVim
-		} else {
-			m.keyMode = appmsg.KeyModeStandard
-		}
 	}
 
 	return m, nil
@@ -161,24 +153,23 @@ func (m Model) View() string {
 		// Show key hints when idle
 		hintKey := th.StatusBarValue
 		hintSep := th.StatusBar
-		center = hintKey.Render("F5") +
-			hintSep.Render(" Run ") +
-			hintKey.Render("Ctrl+Q") +
-			hintSep.Render(" Quit ") +
-			hintKey.Render("Shift+Tab") +
+		center = hintKey.Render("e") +
+			hintSep.Render(" Editor ") +
+			hintKey.Render("Tab") +
 			hintSep.Render(" Switch pane ") +
-			hintKey.Render("F1") +
-			hintSep.Render(" Help ")
+			hintKey.Render("?") +
+			hintSep.Render(" Help ") +
+			hintKey.Render("q") +
+			hintSep.Render(" Quit ")
 	}
 
-	// Right section: key mode + cursor position
-	modeStr := fmt.Sprintf(" %s ", m.keyMode)
-	if m.keyMode == appmsg.KeyModeVim {
-		modeStr = fmt.Sprintf(" %s:%s ", m.keyMode, m.vimState)
-	}
-	right := th.StatusBarKey.Render(modeStr)
+	// Right section: cursor position + version
+	var right string
 	if m.cursorLine > 0 {
 		right += th.StatusBarValue.Render(fmt.Sprintf(" %d:%d ", m.cursorLine, m.cursorCol))
+	}
+	if m.version != "" {
+		right += th.StatusBar.Render(fmt.Sprintf(" %s ", m.version))
 	}
 
 	// Calculate spacing
@@ -207,25 +198,15 @@ func (m *Model) SetSize(width int) {
 	m.width = width
 }
 
+// SetVersion sets the application version displayed in the status bar.
+func (m *Model) SetVersion(v string) {
+	m.version = v
+}
+
 // SetCursor updates the cursor position display.
 func (m *Model) SetCursor(line, col int) {
 	m.cursorLine = line
 	m.cursorCol = col
-}
-
-// SetVimState updates the vim state display.
-func (m *Model) SetVimState(state appmsg.VimState) {
-	m.vimState = state
-}
-
-// KeyMode returns the current key mode.
-func (m Model) KeyMode() appmsg.KeyMode {
-	return m.keyMode
-}
-
-// SetKeyMode sets the key mode.
-func (m *Model) SetKeyMode(mode appmsg.KeyMode) {
-	m.keyMode = mode
 }
 
 func formatDuration(d time.Duration) string {

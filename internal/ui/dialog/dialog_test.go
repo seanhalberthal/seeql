@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 func init() {
@@ -64,7 +64,7 @@ func TestUpdate_NotVisible(t *testing.T) {
 	d := New("Test", "body", Button{Label: "OK"})
 
 	// When not visible, key messages should be ignored.
-	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
 		t.Fatal("expected nil cmd when dialog not visible")
 	}

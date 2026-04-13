@@ -1,62 +1,49 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Config holds all application configuration.
 type Config struct {
-	Theme       string            `yaml:"theme"`
-	KeyMode     string            `yaml:"keymode"` // "vim" or "standard"
-	Editor      EditorConfig      `yaml:"editor"`
-	Results     ResultsConfig     `yaml:"results"`
-	Audit       AuditConfig       `yaml:"audit"`
-	Connections []SavedConnection `yaml:"connections"`
+	Editor      EditorConfig      `json:"editor"`
+	Results     ResultsConfig     `json:"results"`
+	Audit       AuditConfig       `json:"audit"`
+	Connections []SavedConnection `json:"connections"`
 }
 
 // AuditConfig controls the JSON Lines audit log.
 type AuditConfig struct {
-	Enabled   bool   `yaml:"enabled"`
-	Path      string `yaml:"path"`        // empty = ConfigDir()/audit.jsonl
-	MaxSizeMB int    `yaml:"max_size_mb"` // 0 = no rotation
+	Enabled   bool   `json:"enabled"`
+	Path      string `json:"path"`        // empty = ConfigDir()/audit.jsonl
+	MaxSizeMB int    `json:"max_size_mb"` // 0 = no rotation
 }
 
 // EditorConfig holds editor-related settings.
 type EditorConfig struct {
-	TabSize         int  `yaml:"tab_size"`
-	ShowLineNumbers bool `yaml:"show_line_numbers"`
+	TabSize         int  `json:"tab_size"`
+	ShowLineNumbers bool `json:"show_line_numbers"`
 }
 
 // ResultsConfig holds result display settings.
 type ResultsConfig struct {
-	PageSize       int `yaml:"page_size"`
-	MaxColumnWidth int `yaml:"max_column_width"`
+	PageSize       int `json:"page_size"`
+	MaxColumnWidth int `json:"max_column_width"`
 }
 
-// SavedConnection holds parameters for a saved database connection.
+// SavedConnection holds a saved database connection.
+// Adapter is auto-detected from the DSN.
 type SavedConnection struct {
-	Name     string `yaml:"name"`
-	Adapter  string `yaml:"adapter"`
-	DSN      string `yaml:"dsn,omitempty"`
-	Host     string `yaml:"host,omitempty"`
-	Port     int    `yaml:"port,omitempty"`
-	User     string `yaml:"user,omitempty"`
-	Password string `yaml:"password,omitempty"`
-	Database string `yaml:"database,omitempty"`
-	File     string `yaml:"file,omitempty"`
+	Name string `json:"name,omitempty"`
+	DSN  string `json:"dsn"`
 }
 
 // DefaultConfig returns a Config populated with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		Theme:   "default",
-		KeyMode: "standard",
 		Editor: EditorConfig{
 			TabSize:         4,
 			ShowLineNumbers: true,
@@ -68,18 +55,18 @@ func DefaultConfig() *Config {
 	}
 }
 
-// ConfigDir returns the gotermsql configuration directory path.
+// ConfigDir returns the seeql configuration directory path.
 // It uses os.UserConfigDir to locate the base config directory and
-// appends "gotermsql" to it, typically resulting in ~/.config/gotermsql/.
+// appends "seeql" to it, typically resulting in ~/.config/seeql/.
 func ConfigDir() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("config dir: %w", err)
 	}
-	return filepath.Join(base, "gotermsql"), nil
+	return filepath.Join(base, "seeql"), nil
 }
 
-// Load reads a Config from the YAML file at path. If the file does not exist,
+// Load reads a Config from the JSON file at path. If the file does not exist,
 // it returns DefaultConfig without error.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -91,23 +78,23 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg := DefaultConfig()
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	return cfg, nil
 }
 
 // LoadDefault loads configuration from the default path
-// (ConfigDir()/config.yaml).
+// (ConfigDir()/config.json).
 func LoadDefault() (*Config, error) {
 	dir, err := ConfigDir()
 	if err != nil {
 		return nil, err
 	}
-	return Load(filepath.Join(dir, "config.yaml"))
+	return Load(filepath.Join(dir, "config.json"))
 }
 
-// Save writes the Config to the YAML file at path atomically, creating any
+// Save writes the Config to the JSON file at path atomically, creating any
 // necessary parent directories. It writes to a temp file first and renames
 // to avoid corruption on crash.
 func (c *Config) Save(path string) error {
@@ -116,13 +103,14 @@ func (c *Config) Save(path string) error {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	data, err := yaml.Marshal(c)
+	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
+	data = append(data, '\n')
 
 	// Write to a temp file in the same directory, then rename for atomicity.
-	tmp, err := os.CreateTemp(dir, ".config-*.yaml.tmp")
+	tmp, err := os.CreateTemp(dir, ".config-*.json.tmp")
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
@@ -150,125 +138,11 @@ func (c *Config) Save(path string) error {
 }
 
 // SaveDefault writes the Config to the default path
-// (ConfigDir()/config.yaml).
+// (ConfigDir()/config.json).
 func (c *Config) SaveDefault() error {
 	dir, err := ConfigDir()
 	if err != nil {
 		return err
 	}
-	return c.Save(filepath.Join(dir, "config.yaml"))
-}
-
-// BuildDSN constructs a connection string from the individual fields of a
-// SavedConnection. If DSN is already set, it is returned as-is. For
-// file-based adapters (sqlite, duckdb) it returns the File field. For
-// postgres it builds a proper postgres:// URL with escaped credentials. For
-// mysql it builds the go-sql-driver format with escaped password.
-func (sc *SavedConnection) BuildDSN() string {
-	if sc.DSN != "" {
-		return sc.DSN
-	}
-
-	adapterName := strings.ToLower(sc.Adapter)
-	if adapterName == "sqlite" || adapterName == "duckdb" {
-		return sc.File
-	}
-
-	host := sc.Host
-	if host == "" {
-		host = "localhost"
-	}
-
-	switch adapterName {
-	case "postgres":
-		u := &url.URL{Scheme: "postgres", Host: host}
-		if sc.Port > 0 {
-			u.Host = fmt.Sprintf("%s:%d", host, sc.Port)
-		}
-		if sc.User != "" {
-			if sc.Password != "" {
-				u.User = url.UserPassword(sc.User, sc.Password)
-			} else {
-				u.User = url.User(sc.User)
-			}
-		}
-		if sc.Database != "" {
-			u.Path = "/" + sc.Database
-		}
-		return u.String()
-
-	case "mysql":
-		var b strings.Builder
-		if sc.User != "" {
-			b.WriteString(sc.User)
-			if sc.Password != "" {
-				b.WriteByte(':')
-				b.WriteString(url.QueryEscape(sc.Password))
-			}
-			b.WriteByte('@')
-		}
-		port := sc.Port
-		if port == 0 {
-			port = 3306
-		}
-		fmt.Fprintf(&b, "tcp(%s:%d)", host, port)
-		if sc.Database != "" {
-			b.WriteByte('/')
-			b.WriteString(sc.Database)
-		}
-		return b.String()
-
-	default:
-		// Generic fallback
-		var b strings.Builder
-		if sc.User != "" {
-			b.WriteString(sc.User)
-			if sc.Password != "" {
-				b.WriteByte(':')
-				b.WriteString(sc.Password)
-			}
-			b.WriteByte('@')
-		}
-		b.WriteString(host)
-		if sc.Port > 0 {
-			fmt.Fprintf(&b, ":%d", sc.Port)
-		}
-		if sc.Database != "" {
-			b.WriteByte('/')
-			b.WriteString(sc.Database)
-		}
-		return b.String()
-	}
-}
-
-// DisplayString returns a human-readable representation of the connection,
-// formatted as "adapter://host:port/database" for network adapters or
-// "adapter://file" for file-based adapters.
-func (sc *SavedConnection) DisplayString() string {
-	adapter := strings.ToLower(sc.Adapter)
-	if adapter == "sqlite" || adapter == "duckdb" {
-		file := sc.File
-		if file == "" {
-			file = sc.DSN
-		}
-		return fmt.Sprintf("%s://%s", sc.Adapter, file)
-	}
-
-	host := sc.Host
-	if host == "" {
-		host = "localhost"
-	}
-
-	var location string
-	if sc.Port > 0 {
-		location = fmt.Sprintf("%s:%d", host, sc.Port)
-	} else {
-		location = host
-	}
-
-	db := sc.Database
-	if db != "" {
-		return fmt.Sprintf("%s://%s/%s", sc.Adapter, location, db)
-	}
-	return fmt.Sprintf("%s://%s", sc.Adapter, location)
+	return c.Save(filepath.Join(dir, "config.json"))
 }

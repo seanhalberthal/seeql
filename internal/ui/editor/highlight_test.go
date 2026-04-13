@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 // NOTE: lipgloss renders styles as no-ops when there is no TTY (such as in a

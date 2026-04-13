@@ -10,18 +10,26 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/config"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/config"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 // State tracks the connection manager screen.
 type State int
 
 const (
-	StateList State = iota
-	StateForm
-	StateTesting
+	StateConnect State = iota // Combined view: DSN input + saved list
+	StateForm                 // Save/edit named connection
+	StateTesting              // Testing connection
+)
+
+// Focus within StateConnect — either the DSN input or the saved list.
+type connectFocus int
+
+const (
+	focusDSN connectFocus = iota
+	focusList
 )
 
 // ConnectRequestMsg is sent when the user picks a connection.
@@ -44,62 +52,51 @@ type Model struct {
 	width       int
 	height      int
 
-	// Form fields
-	inputs    []textinput.Model
-	formFocus int
-	editing   int // index of connection being edited, -1 for new
-	message   string
-	isError   bool
-}
+	// DSN input (primary)
+	dsnInput  textinput.Model
+	parsed    ParsedDSN
+	connFocus connectFocus
 
-const (
-	fieldName = iota
-	fieldAdapter
-	fieldHost
-	fieldPort
-	fieldUser
-	fieldPassword
-	fieldDatabase
-	fieldFile
-	fieldDSN
-	fieldCount
-)
+	// Form fields (save/edit)
+	nameInput textinput.Model
+	formDSN   textinput.Model
+	formFocus int // 0=name, 1=dsn
+	editing   int // index of connection being edited, -1 for new
+
+	// Feedback
+	message string
+	isError bool
+
+	// Track previous state for testing return
+	prevState State
+}
 
 // New creates a new connection manager.
 func New(connections []config.SavedConnection) Model {
-	m := Model{
+	dsn := textinput.New()
+	dsn.Prompt = "DSN: "
+	dsn.Placeholder = "postgres://user:pass@host:5432/db?sslmode=disable"
+	dsn.Width = 60
+	dsn.CharLimit = 512
+
+	name := textinput.New()
+	name.Prompt = "Name: "
+	name.Placeholder = "my-database (optional)"
+	name.Width = 50
+
+	formDSN := textinput.New()
+	formDSN.Prompt = "DSN: "
+	formDSN.Placeholder = "postgres://user:pass@host:5432/db"
+	formDSN.Width = 50
+	formDSN.CharLimit = 512
+
+	return Model{
 		connections: connections,
 		editing:     -1,
-	}
-	m.initForm()
-	return m
-}
-
-func (m *Model) initForm() {
-	m.inputs = make([]textinput.Model, fieldCount)
-
-	labels := []string{"Name", "Adapter", "Host", "Port", "User", "Password", "Database", "File", "DSN"}
-	placeholders := []string{
-		"my-database",
-		"postgres|mysql|sqlite|duckdb",
-		"localhost",
-		"5432",
-		"",
-		"",
-		"",
-		"/path/to/database.db",
-		"postgres://user:pass@host:5432/db",
-	}
-
-	for i := range m.inputs {
-		t := textinput.New()
-		t.Prompt = labels[i] + ": "
-		t.Placeholder = placeholders[i]
-		if i == fieldPassword {
-			t.EchoMode = textinput.EchoPassword
-		}
-		t.Width = 40
-		m.inputs[i] = t
+		dsnInput:    dsn,
+		nameInput:   name,
+		formDSN:     formDSN,
+		connFocus:   focusDSN,
 	}
 }
 
@@ -115,8 +112,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	switch m.state {
-	case StateList:
-		return m.updateList(msg)
+	case StateConnect:
+		return m.updateConnect(msg)
 	case StateForm:
 		return m.updateForm(msg)
 	case StateTesting:
@@ -125,107 +122,234 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) updateList(msg tea.Msg) (Model, tea.Cmd) {
+// --- StateConnect: combined DSN input + saved connections list ---
+
+func (m Model) updateConnect(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
+		case "esc":
+			if m.connFocus == focusList {
+				m.connFocus = focusDSN
+				m.dsnInput.Focus()
+				return m, textinput.Blink
 			}
-		case "down", "j":
-			if m.cursor < len(m.connections) {
-				m.cursor++
+			m.visible = false
+			return m, nil
+
+		case "tab":
+			if m.connFocus == focusDSN {
+				if len(m.connections) == 0 {
+					return m, nil
+				}
+				m.connFocus = focusList
+				m.dsnInput.Blur()
+			} else {
+				m.connFocus = focusDSN
+				m.dsnInput.Focus()
+				return m, textinput.Blink
 			}
+			return m, nil
+
 		case "enter":
-			if m.cursor < len(m.connections) {
-				conn := m.connections[m.cursor]
-				dsn := conn.DSN
+			if m.connFocus == focusDSN {
+				dsn := strings.TrimSpace(m.dsnInput.Value())
 				if dsn == "" {
-					dsn = conn.BuildDSN()
+					return m, nil
+				}
+				adapterName := adapter.DetectAdapter(dsn)
+				if adapterName == "" {
+					m.message = "Could not detect database type from DSN"
+					m.isError = true
+					return m, nil
 				}
 				m.visible = false
 				return m, func() tea.Msg {
-					return ConnectRequestMsg{
-						AdapterName: conn.Adapter,
-						DSN:         dsn,
-					}
+					return ConnectRequestMsg{AdapterName: adapterName, DSN: dsn}
 				}
 			}
-		case "n":
+			if m.cursor < len(m.connections) {
+				conn := m.connections[m.cursor]
+				adapterName := adapter.DetectAdapter(conn.DSN)
+				m.visible = false
+				return m, func() tea.Msg {
+					return ConnectRequestMsg{AdapterName: adapterName, DSN: conn.DSN}
+				}
+			}
+			return m, nil
+
+		case "ctrl+s":
+			dsn := strings.TrimSpace(m.dsnInput.Value())
+			if dsn == "" {
+				m.message = "DSN is required"
+				m.isError = true
+				return m, nil
+			}
 			m.state = StateForm
 			m.editing = -1
-			m.clearForm()
-			m.inputs[0].Focus()
+			m.nameInput.SetValue("")
+			m.formDSN.SetValue(dsn)
+			m.formFocus = 0
+			m.nameInput.Focus()
+			m.formDSN.Blur()
+			m.message = ""
 			return m, textinput.Blink
-		case "e":
-			if m.cursor < len(m.connections) {
-				m.state = StateForm
-				m.editing = m.cursor
-				m.loadIntoForm(m.connections[m.cursor])
-				m.inputs[0].Focus()
-				return m, textinput.Blink
+
+		case "ctrl+t":
+			dsn := strings.TrimSpace(m.dsnInput.Value())
+			if dsn == "" {
+				m.message = "DSN is required"
+				m.isError = true
+				return m, nil
 			}
-		case "d":
-			if m.cursor < len(m.connections) {
-				m.connections = append(m.connections[:m.cursor], m.connections[m.cursor+1:]...)
-				if m.cursor >= len(m.connections) && m.cursor > 0 {
+			m.prevState = StateConnect
+			m.state = StateTesting
+			return m, m.testConnection(config.SavedConnection{DSN: dsn})
+		}
+
+		// List navigation when focused on list
+		if m.connFocus == focusList {
+			switch msg.String() {
+			case "up", "k":
+				if m.cursor > 0 {
 					m.cursor--
 				}
-				conns := make([]config.SavedConnection, len(m.connections))
-				copy(conns, m.connections)
-				return m, func() tea.Msg { return ConnectionsUpdatedMsg{Connections: conns} }
+			case "down", "j":
+				if m.cursor < len(m.connections)-1 {
+					m.cursor++
+				}
+			case "n":
+				m.state = StateForm
+				m.editing = -1
+				m.nameInput.SetValue("")
+				m.formDSN.SetValue("")
+				m.formFocus = 0
+				m.nameInput.Focus()
+				m.formDSN.Blur()
+				m.message = ""
+				return m, textinput.Blink
+			case "e":
+				if m.cursor < len(m.connections) {
+					m.state = StateForm
+					m.editing = m.cursor
+					m.nameInput.SetValue(m.connections[m.cursor].Name)
+					m.formDSN.SetValue(m.connections[m.cursor].DSN)
+					m.formFocus = 0
+					m.nameInput.Focus()
+					m.formDSN.Blur()
+					m.message = ""
+					return m, textinput.Blink
+				}
+			case "d":
+				if m.cursor < len(m.connections) {
+					m.connections = append(m.connections[:m.cursor], m.connections[m.cursor+1:]...)
+					if m.cursor >= len(m.connections) && m.cursor > 0 {
+						m.cursor--
+					}
+					conns := make([]config.SavedConnection, len(m.connections))
+					copy(conns, m.connections)
+					return m, func() tea.Msg { return ConnectionsUpdatedMsg{Connections: conns} }
+				}
 			}
-		case "esc", "q":
-			m.visible = false
+			return m, nil
+		}
+
+		// DSN input is focused — update it and reparse
+		var cmd tea.Cmd
+		m.dsnInput, cmd = m.dsnInput.Update(msg)
+		m.parsed = ParseDSN(m.dsnInput.Value())
+		m.message = ""
+		return m, cmd
+
+	default:
+		if m.connFocus == focusDSN {
+			var cmd tea.Cmd
+			m.dsnInput, cmd = m.dsnInput.Update(msg)
+			return m, cmd
 		}
 	}
 	return m, nil
 }
+
+// --- StateForm: save/edit named connection ---
 
 func (m Model) updateForm(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
-			m.state = StateList
-			return m, nil
+			m.state = StateConnect
+			m.dsnInput.Focus()
+			return m, textinput.Blink
 		case "tab", "down":
-			m.inputs[m.formFocus].Blur()
-			m.formFocus = (m.formFocus + 1) % fieldCount
-			m.inputs[m.formFocus].Focus()
+			if m.formFocus == 0 {
+				m.nameInput.Blur()
+				m.formDSN.Focus()
+				m.formFocus = 1
+			} else {
+				m.formDSN.Blur()
+				m.nameInput.Focus()
+				m.formFocus = 0
+			}
 			return m, textinput.Blink
 		case "shift+tab", "up":
-			m.inputs[m.formFocus].Blur()
-			m.formFocus--
-			if m.formFocus < 0 {
-				m.formFocus = fieldCount - 1
+			if m.formFocus == 1 {
+				m.formDSN.Blur()
+				m.nameInput.Focus()
+				m.formFocus = 0
+			} else {
+				m.nameInput.Blur()
+				m.formDSN.Focus()
+				m.formFocus = 1
 			}
-			m.inputs[m.formFocus].Focus()
 			return m, textinput.Blink
 		case "ctrl+s":
-			conn := m.formToConnection()
+			dsn := strings.TrimSpace(m.formDSN.Value())
+			if dsn == "" {
+				m.message = "DSN is required"
+				m.isError = true
+				return m, nil
+			}
+			conn := config.SavedConnection{
+				Name: strings.TrimSpace(m.nameInput.Value()),
+				DSN:  dsn,
+			}
 			if m.editing >= 0 && m.editing < len(m.connections) {
 				m.connections[m.editing] = conn
 			} else {
 				m.connections = append(m.connections, conn)
 			}
-			m.state = StateList
+			m.state = StateConnect
+			m.dsnInput.Focus()
 			conns := make([]config.SavedConnection, len(m.connections))
 			copy(conns, m.connections)
-			return m, func() tea.Msg { return ConnectionsUpdatedMsg{Connections: conns} }
+			return m, tea.Batch(
+				textinput.Blink,
+				func() tea.Msg { return ConnectionsUpdatedMsg{Connections: conns} },
+			)
 		case "ctrl+t":
+			dsn := strings.TrimSpace(m.formDSN.Value())
+			if dsn == "" {
+				m.message = "DSN is required"
+				m.isError = true
+				return m, nil
+			}
+			m.prevState = StateForm
 			m.state = StateTesting
-			conn := m.formToConnection()
-			return m, m.testConnection(conn)
+			return m, m.testConnection(config.SavedConnection{DSN: dsn})
 		}
 	}
 
-	// Update focused input
 	var cmd tea.Cmd
-	m.inputs[m.formFocus], cmd = m.inputs[m.formFocus].Update(msg)
+	if m.formFocus == 0 {
+		m.nameInput, cmd = m.nameInput.Update(msg)
+	} else {
+		m.formDSN, cmd = m.formDSN.Update(msg)
+	}
 	return m, cmd
 }
+
+// --- StateTesting ---
 
 func (m Model) updateTesting(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -237,10 +361,14 @@ func (m Model) updateTesting(msg tea.Msg) (Model, tea.Cmd) {
 			m.message = "Connection successful!"
 			m.isError = false
 		}
-		m.state = StateForm
+		m.state = m.prevState
+		if m.state == StateConnect {
+			m.dsnInput.Focus()
+			return m, textinput.Blink
+		}
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
-			m.state = StateForm
+			m.state = m.prevState
 		}
 	}
 	return m, nil
@@ -250,17 +378,14 @@ type testResultMsg struct{ err error }
 
 func (m Model) testConnection(conn config.SavedConnection) tea.Cmd {
 	return func() tea.Msg {
-		dsn := conn.DSN
-		if dsn == "" {
-			dsn = conn.BuildDSN()
-		}
-		a, ok := adapter.Registry[conn.Adapter]
+		adapterName := adapter.DetectAdapter(conn.DSN)
+		a, ok := adapter.Registry[adapterName]
 		if !ok {
-			return testResultMsg{err: fmt.Errorf("unknown adapter: %s", conn.Adapter)}
+			return testResultMsg{err: fmt.Errorf("unknown adapter for DSN (detected: %q)", adapterName)}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		c, err := a.Connect(ctx, dsn)
+		c, err := a.Connect(ctx, conn.DSN)
 		if err != nil {
 			return testResultMsg{err: err}
 		}
@@ -269,6 +394,8 @@ func (m Model) testConnection(conn config.SavedConnection) tea.Cmd {
 		return testResultMsg{err: err}
 	}
 }
+
+// --- Views ---
 
 // View renders the connection manager.
 func (m Model) View() string {
@@ -279,8 +406,8 @@ func (m Model) View() string {
 	th := theme.Current
 
 	switch m.state {
-	case StateList:
-		return m.viewList(th)
+	case StateConnect:
+		return m.viewConnect(th)
 	case StateForm:
 		return m.viewForm(th)
 	case StateTesting:
@@ -289,37 +416,61 @@ func (m Model) View() string {
 	return ""
 }
 
-func (m Model) viewList(th *theme.Theme) string {
-	title := th.DialogTitle.Render("  Connection Manager  ")
+func (m Model) viewConnect(th *theme.Theme) string {
+	title := th.DialogTitle.Render("  Connections  ")
 
 	var lines []string
-	for i, conn := range m.connections {
-		line := fmt.Sprintf("  %s  (%s)", conn.Name, conn.DisplayString())
-		if i == m.cursor {
-			lines = append(lines, th.SidebarSelected.Render(line))
-		} else {
-			lines = append(lines, "  "+line)
+	lines = append(lines, title)
+	lines = append(lines, "")
+
+	// DSN input
+	lines = append(lines, "  "+m.dsnInput.View())
+
+	// Parsed DSN summary
+	if summary := m.parsed.Summary(); summary != "" {
+		check := th.SuccessText.Render("\u2713")
+		lines = append(lines, "  "+check+" "+th.MutedText.Render(summary))
+		if params := m.parsed.ParamString(); params != "" {
+			lines = append(lines, "    "+th.MutedText.Render(params))
 		}
 	}
 
-	// "New connection" option
-	newLine := "  + New Connection"
-	if m.cursor == len(m.connections) {
-		lines = append(lines, th.SidebarSelected.Render(newLine))
-	} else {
-		lines = append(lines, "  "+newLine)
+	// Feedback message
+	if m.message != "" {
+		if m.isError {
+			lines = append(lines, "  "+th.ErrorText.Render(m.message))
+		} else {
+			lines = append(lines, "  "+th.SuccessText.Render(m.message))
+		}
 	}
 
-	help := th.MutedText.Render("  enter:connect  n:new  e:edit  d:delete  esc:close")
+	// Divider + saved connections
+	if len(m.connections) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, "  "+th.MutedText.Render("Saved"))
 
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		title,
-		"",
-		strings.Join(lines, "\n"),
-		"",
-		help,
-	)
+		for i, conn := range m.connections {
+			label := conn.DSN
+			if conn.Name != "" {
+				label = conn.Name + "  " + th.MutedText.Render("("+truncateDSN(conn.DSN, 40)+")")
+			}
+			line := "  " + label
+			if m.connFocus == focusList && i == m.cursor {
+				lines = append(lines, th.SidebarSelected.Render(line))
+			} else {
+				lines = append(lines, "  "+line)
+			}
+		}
+	}
 
+	lines = append(lines, "")
+	help := "enter:connect  ctrl+s:save  ctrl+t:test  esc:close"
+	if m.connFocus == focusList {
+		help = "enter:connect  n:new  e:edit  d:delete  tab:dsn  esc:back"
+	}
+	lines = append(lines, th.MutedText.Render("  "+help))
+
+	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	return th.DialogBorder.Width(m.dialogWidth()).Render(content)
 }
 
@@ -332,16 +483,14 @@ func (m Model) viewForm(th *theme.Theme) string {
 	var lines []string
 	lines = append(lines, th.DialogTitle.Render(title))
 	lines = append(lines, "")
-
-	for i := range m.inputs {
-		lines = append(lines, "  "+m.inputs[i].View())
-	}
+	lines = append(lines, "  "+m.nameInput.View())
+	lines = append(lines, "  "+m.formDSN.View())
 
 	if m.message != "" {
 		if m.isError {
-			lines = append(lines, "", th.ErrorText.Render("  "+m.message))
+			lines = append(lines, "", "  "+th.ErrorText.Render(m.message))
 		} else {
-			lines = append(lines, "", th.SuccessText.Render("  "+m.message))
+			lines = append(lines, "", "  "+th.SuccessText.Render(m.message))
 		}
 	}
 
@@ -353,63 +502,36 @@ func (m Model) viewForm(th *theme.Theme) string {
 }
 
 func (m Model) dialogWidth() int {
-	w := 60
+	w := 64
 	if m.width > 0 && w > m.width-4 {
 		w = m.width - 4
 	}
 	return w
 }
 
-func (m *Model) clearForm() {
-	for i := range m.inputs {
-		m.inputs[i].SetValue("")
+// truncateDSN shortens a DSN for display, masking credentials.
+func truncateDSN(dsn string, maxLen int) string {
+	masked := sanitizeError(dsn)
+	if len(masked) <= maxLen {
+		return masked
 	}
-	m.formFocus = 0
-	m.message = ""
+	return masked[:maxLen-1] + "\u2026"
 }
 
-func (m *Model) loadIntoForm(conn config.SavedConnection) {
-	m.inputs[fieldName].SetValue(conn.Name)
-	m.inputs[fieldAdapter].SetValue(conn.Adapter)
-	m.inputs[fieldHost].SetValue(conn.Host)
-	if conn.Port > 0 {
-		m.inputs[fieldPort].SetValue(fmt.Sprintf("%d", conn.Port))
-	}
-	m.inputs[fieldUser].SetValue(conn.User)
-	m.inputs[fieldPassword].SetValue(conn.Password)
-	m.inputs[fieldDatabase].SetValue(conn.Database)
-	m.inputs[fieldFile].SetValue(conn.File)
-	m.inputs[fieldDSN].SetValue(conn.DSN)
-	m.formFocus = 0
-	m.message = ""
-}
-
-func (m Model) formToConnection() config.SavedConnection {
-	port := 0
-	fmt.Sscanf(m.inputs[fieldPort].Value(), "%d", &port)
-	return config.SavedConnection{
-		Name:     m.inputs[fieldName].Value(),
-		Adapter:  m.inputs[fieldAdapter].Value(),
-		Host:     m.inputs[fieldHost].Value(),
-		Port:     port,
-		User:     m.inputs[fieldUser].Value(),
-		Password: m.inputs[fieldPassword].Value(),
-		Database: m.inputs[fieldDatabase].Value(),
-		File:     m.inputs[fieldFile].Value(),
-		DSN:      m.inputs[fieldDSN].Value(),
-	}
-}
-
-// Show makes the connection manager visible.
+// Show makes the connection manager visible with DSN input focused.
 func (m *Model) Show() {
 	m.visible = true
-	m.state = StateList
+	m.state = StateConnect
+	m.connFocus = focusDSN
 	m.cursor = 0
+	m.message = ""
+	m.dsnInput.Focus()
 }
 
 // Hide hides the connection manager.
 func (m *Model) Hide() {
 	m.visible = false
+	m.dsnInput.Blur()
 }
 
 // Visible returns whether the connection manager is shown.
@@ -433,23 +555,24 @@ func (m *Model) SetConnections(conns []config.SavedConnection) {
 
 // sanitizeError strips credentials from error messages that may contain DSN URLs.
 func sanitizeError(msg string) string {
-	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://", "duckdb://"} {
+	for _, prefix := range []string{"postgres://", "postgresql://", "mysql://"} {
+		offset := 0
 		for {
-			idx := strings.Index(msg, prefix)
+			idx := strings.Index(msg[offset:], prefix)
 			if idx < 0 {
 				break
 			}
+			idx += offset // absolute position
 			rest := msg[idx+len(prefix):]
 			atIdx := strings.Index(rest, "@")
 			if atIdx < 0 {
 				break
 			}
 			msg = msg[:idx+len(prefix)] + "***" + msg[idx+len(prefix)+atIdx:]
+			offset = idx + len(prefix) + 4 // skip past "***@"
 		}
 	}
-	// MySQL driver format: user:pass@tcp(
 	msg = reMySQLCreds.ReplaceAllString(msg, "${1}***@tcp(")
-	// PostgreSQL keyword format: password=xxx
 	msg = rePGPassword.ReplaceAllString(msg, "password=***")
 	return msg
 }

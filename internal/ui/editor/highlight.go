@@ -1,4 +1,4 @@
-// Package editor provides the SQL editor component for gotermsql.
+// Package editor provides the SQL editor component for seeql.
 package editor
 
 import (
@@ -7,7 +7,7 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 // Highlighter tokenises SQL text using chroma and renders it with lipgloss

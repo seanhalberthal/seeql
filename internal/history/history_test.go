@@ -41,8 +41,8 @@ func TestNew(t *testing.T) {
 	defer h.Close()
 
 	// Verify that the history.db file was created inside the config dir.
-	// On macOS: ~/Library/Application Support/gotermsql/history.db
-	// On Linux (XDG): ~/.config/gotermsql/history.db
+	// On macOS: ~/Library/Application Support/seeql/history.db
+	// On Linux (XDG): ~/.config/seeql/history.db
 	// Either way, the DB connection should work.
 	entries, err := h.Recent(10)
 	if err != nil {
@@ -438,11 +438,11 @@ func TestNewCreatesDBFile(t *testing.T) {
 	defer h.Close()
 
 	// Check that the DB file exists on disk. On macOS ConfigDir returns
-	// ~/Library/Application Support/gotermsql, on Linux ~/.config/gotermsql.
+	// ~/Library/Application Support/seeql, on Linux ~/.config/seeql.
 	// We check both possible paths.
 	candidates := []string{
-		filepath.Join(tmpHome, "Library", "Application Support", "gotermsql", "history.db"),
-		filepath.Join(tmpHome, ".config", "gotermsql", "history.db"),
+		filepath.Join(tmpHome, "Library", "Application Support", "seeql", "history.db"),
+		filepath.Join(tmpHome, ".config", "seeql", "history.db"),
 	}
 
 	found := false

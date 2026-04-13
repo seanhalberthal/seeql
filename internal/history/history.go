@@ -9,7 +9,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/sadopc/gotermsql/internal/config"
+	"github.com/seanhalberthal/seeql/internal/config"
 )
 
 const createTableSQL = `CREATE TABLE IF NOT EXISTS history (

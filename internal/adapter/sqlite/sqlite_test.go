@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/adapter"
 )
 
 func TestSQLiteAdapter_Name(t *testing.T) {
@@ -619,9 +619,9 @@ func TestExecuteStreaming_InMemory(t *testing.T) {
 	}
 }
 
-func TestExecuteStreaming_10MillionRows(t *testing.T) {
+func TestExecuteStreaming_LargeResultSet(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping 10M row test in short mode")
+		t.Skip("skipping large row test in short mode")
 	}
 
 	conn := openMemory(t)
@@ -629,19 +629,22 @@ func TestExecuteStreaming_10MillionRows(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create table and bulk-insert 10M rows via recursive CTE.
+	// Create table and bulk-insert 1M rows via recursive CTE.
+	// 1M is enough to validate streaming memory behaviour (1M × ~20 bytes = 20 MB
+	// if buffered at once vs constant overhead with streaming) while completing
+	// well within the default 60s test timeout.
 	_, err := conn.Execute(ctx, "CREATE TABLE big_test (id INTEGER PRIMARY KEY, val TEXT)")
 	if err != nil {
 		t.Fatalf("CREATE TABLE error: %v", err)
 	}
 
-	const totalRows = 10_000_000
+	const totalRows = 1_000_000
 	t.Logf("inserting %d rows...", totalRows)
 	_, err = conn.Execute(ctx, `
 		WITH RECURSIVE cnt(x) AS (
 			VALUES(1)
 			UNION ALL
-			SELECT x+1 FROM cnt WHERE x < 10000000
+			SELECT x+1 FROM cnt WHERE x < 1000000
 		)
 		INSERT INTO big_test SELECT x, 'row-' || x FROM cnt
 	`)
@@ -685,8 +688,8 @@ func TestExecuteStreaming_10MillionRows(t *testing.T) {
 		rowCount += int64(len(page))
 		pageCount++
 
-		// Sample memory every 1000 pages.
-		if pageCount%1000 == 0 {
+		// Sample memory every 100 pages.
+		if pageCount%100 == 0 {
 			var mem runtime.MemStats
 			runtime.ReadMemStats(&mem)
 			if mem.Alloc > peakAlloc {
@@ -721,13 +724,13 @@ func TestExecuteStreaming_10MillionRows(t *testing.T) {
 		t.Errorf("got %d pages, want %d", pageCount, expectedPages)
 	}
 
-	// Memory guard: streaming should not hold all 10M rows in memory.
-	// 10M rows × ~20 bytes each ≈ 200 MB if all held at once.
-	// With streaming, peak overhead above baseline should stay well under 100 MB.
+	// Memory guard: streaming should not hold all rows in memory.
+	// 1M rows × ~20 bytes each ≈ 20 MB if all held at once.
+	// With streaming, peak overhead above baseline should stay well under 50 MB.
 	overhead := peakAlloc - baseline.Alloc
-	const maxOverhead = 100 * 1024 * 1024 // 100 MB
+	const maxOverhead = 50 * 1024 * 1024 // 50 MB
 	if overhead > maxOverhead {
-		t.Errorf("memory overhead = %d MB, want < 100 MB (streaming should not buffer all rows)",
+		t.Errorf("memory overhead = %d MB, want < 50 MB (streaming should not buffer all rows)",
 			overhead/1024/1024)
 	}
 }

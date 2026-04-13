@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/adapter"
 )
 
 // Default DSN for local Homebrew PostgreSQL.
-// Override with GOTERMSQL_PG_DSN env var.
-const defaultTestDSN = "postgres://localhost:5432/gotermsql_test?sslmode=disable"
+// Override with SEEQL_PG_DSN env var.
+const defaultTestDSN = "postgres://localhost:5432/seeql_test?sslmode=disable"
 
 func testDSN() string {
-	if dsn := os.Getenv("GOTERMSQL_PG_DSN"); dsn != "" {
+	if dsn := os.Getenv("SEEQL_PG_DSN"); dsn != "" {
 		return dsn
 	}
 	return defaultTestDSN
@@ -45,8 +45,8 @@ func TestIntegration_ConnectAndPing(t *testing.T) {
 	if conn.AdapterName() != "postgres" {
 		t.Errorf("AdapterName() = %q, want %q", conn.AdapterName(), "postgres")
 	}
-	if conn.DatabaseName() != "gotermsql_test" {
-		t.Errorf("DatabaseName() = %q, want %q", conn.DatabaseName(), "gotermsql_test")
+	if conn.DatabaseName() != "seeql_test" {
+		t.Errorf("DatabaseName() = %q, want %q", conn.DatabaseName(), "seeql_test")
 	}
 }
 
@@ -55,8 +55,8 @@ func TestIntegration_Execute_DDL_and_DML(t *testing.T) {
 	ctx := context.Background()
 
 	// Cleanup from any previous run
-	conn.Execute(ctx, "DROP TABLE IF EXISTS test_orders")
-	conn.Execute(ctx, "DROP TABLE IF EXISTS test_users")
+	_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_orders")
+	_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_users")
 
 	// CREATE TABLE
 	res, err := conn.Execute(ctx, `
@@ -138,7 +138,7 @@ func TestIntegration_Execute_DDL_and_DML(t *testing.T) {
 	}
 
 	// Cleanup
-	conn.Execute(ctx, "DROP TABLE test_users")
+	_, _ = conn.Execute(ctx, "DROP TABLE test_users")
 }
 
 func TestIntegration_Introspection(t *testing.T) {
@@ -146,27 +146,27 @@ func TestIntegration_Introspection(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup
-	conn.Execute(ctx, "DROP TABLE IF EXISTS test_orders")
-	conn.Execute(ctx, "DROP TABLE IF EXISTS test_products")
-	conn.Execute(ctx, `
+	_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_orders")
+	_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_products")
+	_, _ = conn.Execute(ctx, `
 		CREATE TABLE test_products (
 			id    SERIAL PRIMARY KEY,
 			name  VARCHAR(100) NOT NULL,
 			price NUMERIC(10,2)
 		)
 	`)
-	conn.Execute(ctx, `
+	_, _ = conn.Execute(ctx, `
 		CREATE TABLE test_orders (
 			id         SERIAL PRIMARY KEY,
 			product_id INT REFERENCES test_products(id),
 			quantity   INT NOT NULL DEFAULT 1
 		)
 	`)
-	conn.Execute(ctx, "CREATE INDEX idx_test_orders_product ON test_orders(product_id)")
+	_, _ = conn.Execute(ctx, "CREATE INDEX idx_test_orders_product ON test_orders(product_id)")
 
 	t.Cleanup(func() {
-		conn.Execute(ctx, "DROP TABLE IF EXISTS test_orders")
-		conn.Execute(ctx, "DROP TABLE IF EXISTS test_products")
+		_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_orders")
+		_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_products")
 	})
 
 	// Databases
@@ -177,19 +177,19 @@ func TestIntegration_Introspection(t *testing.T) {
 		}
 		found := false
 		for _, db := range dbs {
-			if db.Name == "gotermsql_test" {
+			if db.Name == "seeql_test" {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Error("gotermsql_test not found in Databases()")
+			t.Error("seeql_test not found in Databases()")
 		}
 	})
 
 	// Tables
 	t.Run("Tables", func(t *testing.T) {
-		tables, err := conn.Tables(ctx, "gotermsql_test", "public")
+		tables, err := conn.Tables(ctx, "seeql_test", "public")
 		if err != nil {
 			t.Fatalf("Tables: %v", err)
 		}
@@ -207,7 +207,7 @@ func TestIntegration_Introspection(t *testing.T) {
 
 	// Columns
 	t.Run("Columns", func(t *testing.T) {
-		cols, err := conn.Columns(ctx, "gotermsql_test", "public", "test_products")
+		cols, err := conn.Columns(ctx, "seeql_test", "public", "test_products")
 		if err != nil {
 			t.Fatalf("Columns: %v", err)
 		}
@@ -275,14 +275,14 @@ func TestIntegration_Streaming(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup
-	conn.Execute(ctx, "DROP TABLE IF EXISTS test_stream")
-	conn.Execute(ctx, "CREATE TABLE test_stream (id INT, val TEXT)")
-	conn.Execute(ctx, `
+	_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_stream")
+	_, _ = conn.Execute(ctx, "CREATE TABLE test_stream (id INT, val TEXT)")
+	_, _ = conn.Execute(ctx, `
 		INSERT INTO test_stream (id, val)
 		SELECT g, 'row-' || g FROM generate_series(1, 50) AS g
 	`)
 	t.Cleanup(func() {
-		conn.Execute(ctx, "DROP TABLE IF EXISTS test_stream")
+		_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_stream")
 	})
 
 	iter, err := conn.ExecuteStreaming(ctx, "SELECT * FROM test_stream ORDER BY id", 10)
@@ -350,10 +350,10 @@ func TestIntegration_Completions(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup
-	conn.Execute(ctx, "DROP TABLE IF EXISTS test_comp")
-	conn.Execute(ctx, "CREATE TABLE test_comp (id INT, description TEXT)")
+	_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_comp")
+	_, _ = conn.Execute(ctx, "CREATE TABLE test_comp (id INT, description TEXT)")
 	t.Cleanup(func() {
-		conn.Execute(ctx, "DROP TABLE IF EXISTS test_comp")
+		_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_comp")
 	})
 
 	items, err := conn.Completions(ctx)
@@ -387,8 +387,8 @@ func TestIntegration_DataTypes(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup
-	conn.Execute(ctx, "DROP TABLE IF EXISTS test_types")
-	conn.Execute(ctx, `
+	_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_types")
+	_, _ = conn.Execute(ctx, `
 		CREATE TABLE test_types (
 			c_bool     BOOLEAN,
 			c_int      INT,
@@ -403,7 +403,7 @@ func TestIntegration_DataTypes(t *testing.T) {
 			c_uuid     UUID
 		)
 	`)
-	conn.Execute(ctx, `
+	_, _ = conn.Execute(ctx, `
 		INSERT INTO test_types VALUES (
 			true, 42, 9999999999, 3.14, 99.99,
 			'hello world', 'varchar val',
@@ -413,7 +413,7 @@ func TestIntegration_DataTypes(t *testing.T) {
 		)
 	`)
 	t.Cleanup(func() {
-		conn.Execute(ctx, "DROP TABLE IF EXISTS test_types")
+		_, _ = conn.Execute(ctx, "DROP TABLE IF EXISTS test_types")
 	})
 
 	res, err := conn.Execute(ctx, "SELECT * FROM test_types")

@@ -1,4 +1,4 @@
-gotermsql
+/seeql
 bin/
 dist/
 *.exe
@@ -6,3 +6,5 @@ dist/
 *.so
 *.dylib
 .DS_Store
+.plans/
+/.claude

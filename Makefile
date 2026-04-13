@@ -1,19 +1,16 @@
-BINARY_NAME=gotermsql
+BINARY_NAME=seeql
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
 
-.PHONY: build build-full install test lint clean run
+.PHONY: build install test lint clean run
 
 build:
-	CGO_ENABLED=0 go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/gotermsql
-
-build-full:
-	CGO_ENABLED=1 go build -tags duckdb $(LDFLAGS) -o bin/$(BINARY_NAME)-full ./cmd/gotermsql
+	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/seeql
 
 install:
-	CGO_ENABLED=0 go install $(LDFLAGS) ./cmd/gotermsql
+	go install $(LDFLAGS) ./cmd/seeql
 
 test:
 	go test ./...
@@ -36,7 +33,7 @@ clean:
 	go clean
 
 run:
-	go run $(LDFLAGS) ./cmd/gotermsql $(ARGS)
+	go run $(LDFLAGS) ./cmd/seeql $(ARGS)
 
 tidy:
 	go mod tidy
@@ -46,18 +43,18 @@ deps:
 
 # Cross-compilation targets
 build-linux-amd64:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-amd64 ./cmd/gotermsql
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-amd64 ./cmd/seeql
 
 build-linux-arm64:
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-arm64 ./cmd/gotermsql
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-arm64 ./cmd/seeql
 
 build-darwin-amd64:
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-amd64 ./cmd/gotermsql
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-amd64 ./cmd/seeql
 
 build-darwin-arm64:
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-arm64 ./cmd/gotermsql
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-arm64 ./cmd/seeql
 
 build-windows-amd64:
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-amd64.exe ./cmd/gotermsql
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-windows-amd64.exe ./cmd/seeql
 
 build-all: build-linux-amd64 build-linux-arm64 build-darwin-amd64 build-darwin-arm64 build-windows-amd64
