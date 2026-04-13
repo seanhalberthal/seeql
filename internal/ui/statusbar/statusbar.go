@@ -23,12 +23,13 @@ type Model struct {
 	dsn          string
 	queryTime    time.Duration
 	rowCount     int64
-	message string
+	message      string
 	isError      bool
 	clearGen     uint64
 	cursorLine   int
 	cursorCol    int
 	connected    bool
+	version      string
 }
 
 // New creates a new status bar.
@@ -162,10 +163,13 @@ func (m Model) View() string {
 			hintSep.Render(" Quit ")
 	}
 
-	// Right section: cursor position
+	// Right section: cursor position + version
 	var right string
 	if m.cursorLine > 0 {
 		right += th.StatusBarValue.Render(fmt.Sprintf(" %d:%d ", m.cursorLine, m.cursorCol))
+	}
+	if m.version != "" {
+		right += th.StatusBar.Render(fmt.Sprintf(" %s ", m.version))
 	}
 
 	// Calculate spacing
@@ -192,6 +196,11 @@ func (m Model) View() string {
 // SetSize sets the status bar width.
 func (m *Model) SetSize(width int) {
 	m.width = width
+}
+
+// SetVersion sets the application version displayed in the status bar.
+func (m *Model) SetVersion(v string) {
+	m.version = v
 }
 
 // SetCursor updates the cursor position display.
