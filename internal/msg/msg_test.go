@@ -10,95 +10,10 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// KeyMode
-// ---------------------------------------------------------------------------
-
-func TestKeyMode_String(t *testing.T) {
-	tests := []struct {
-		mode KeyMode
-		want string
-	}{
-		{KeyModeStandard, "standard"},
-		{KeyModeVim, "vim"},
-	}
-	for _, tt := range tests {
-		got := tt.mode.String()
-		if got != tt.want {
-			t.Errorf("KeyMode(%d).String() = %q, want %q", tt.mode, got, tt.want)
-		}
-	}
-}
-
-func TestParseKeyMode(t *testing.T) {
-	tests := []struct {
-		input string
-		want  KeyMode
-	}{
-		{"vim", KeyModeVim},
-		{"standard", KeyModeStandard},
-		{"", KeyModeStandard},
-		{"anything", KeyModeStandard},
-		{"VIM", KeyModeStandard},   // case-sensitive: only lowercase "vim" matches
-		{"Vim", KeyModeStandard},   // case-sensitive
-		{"emacs", KeyModeStandard}, // unknown defaults to standard
-	}
-	for _, tt := range tests {
-		got := ParseKeyMode(tt.input)
-		if got != tt.want {
-			t.Errorf("ParseKeyMode(%q) = %d, want %d", tt.input, got, tt.want)
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// VimState
-// ---------------------------------------------------------------------------
-
-func TestVimState_String(t *testing.T) {
-	tests := []struct {
-		state VimState
-		want  string
-	}{
-		{VimNormal, "NORMAL"},
-		{VimInsert, "INSERT"},
-		{VimVisual, "VISUAL"},
-	}
-	for _, tt := range tests {
-		got := tt.state.String()
-		if got != tt.want {
-			t.Errorf("VimState(%d).String() = %q, want %q", tt.state, got, tt.want)
-		}
-	}
-}
-
-func TestVimState_String_UnknownDefaultsToNormal(t *testing.T) {
-	// Any state value beyond the defined constants should default to "NORMAL"
-	unknown := VimState(99)
-	got := unknown.String()
-	if got != "NORMAL" {
-		t.Errorf("VimState(99).String() = %q, want %q", got, "NORMAL")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Pane constants
+// Pane
 // ---------------------------------------------------------------------------
 
 func TestPaneConstants(t *testing.T) {
-	// Verify the three pane constants are distinct
-	if PaneSidebar == PaneEditor {
-		t.Error("PaneSidebar should not equal PaneEditor")
-	}
-	if PaneSidebar == PaneResults {
-		t.Error("PaneSidebar should not equal PaneResults")
-	}
-	if PaneEditor == PaneResults {
-		t.Error("PaneEditor should not equal PaneResults")
-	}
-}
-
-func TestPaneConstants_IotaOrder(t *testing.T) {
-	// Verify expected iota ordering
 	if PaneSidebar != 0 {
 		t.Errorf("PaneSidebar = %d, want 0", PaneSidebar)
 	}
@@ -408,11 +323,6 @@ func TestInsertTextMsg(t *testing.T) {
 	}
 }
 
-func TestToggleKeyModeMsg(t *testing.T) {
-	// ToggleKeyModeMsg has no fields, just verify it can be created
-	_ = ToggleKeyModeMsg{}
-}
-
 func TestRefreshSchemaMsg(t *testing.T) {
 	// RefreshSchemaMsg has no fields
 	_ = RefreshSchemaMsg{}
@@ -423,27 +333,3 @@ func TestOpenHistoryMsg(t *testing.T) {
 	_ = OpenHistoryMsg{}
 }
 
-// ---------------------------------------------------------------------------
-// KeyMode and VimState constants are correct iota values
-// ---------------------------------------------------------------------------
-
-func TestKeyModeConstants(t *testing.T) {
-	if KeyModeStandard != 0 {
-		t.Errorf("KeyModeStandard = %d, want 0", KeyModeStandard)
-	}
-	if KeyModeVim != 1 {
-		t.Errorf("KeyModeVim = %d, want 1", KeyModeVim)
-	}
-}
-
-func TestVimStateConstants(t *testing.T) {
-	if VimNormal != 0 {
-		t.Errorf("VimNormal = %d, want 0", VimNormal)
-	}
-	if VimInsert != 1 {
-		t.Errorf("VimInsert = %d, want 1", VimInsert)
-	}
-	if VimVisual != 2 {
-		t.Errorf("VimVisual = %d, want 2", VimVisual)
-	}
-}

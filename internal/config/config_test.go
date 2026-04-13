@@ -10,9 +10,6 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.KeyMode != "vim" {
-		t.Errorf("KeyMode = %q, want %q", cfg.KeyMode, "vim")
-	}
 	if cfg.Editor.TabSize != 4 {
 		t.Errorf("Editor.TabSize = %d, want %d", cfg.Editor.TabSize, 4)
 	}
@@ -35,7 +32,6 @@ func TestLoadValidJSON(t *testing.T) {
 	path := filepath.Join(dir, "config.json")
 
 	data := `{
-  "keymode": "vim",
   "editor": {
     "tab_size": 2,
     "show_line_numbers": false
@@ -63,9 +59,6 @@ func TestLoadValidJSON(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.KeyMode != "vim" {
-		t.Errorf("KeyMode = %q, want %q", cfg.KeyMode, "vim")
-	}
 	if cfg.Editor.TabSize != 2 {
 		t.Errorf("Editor.TabSize = %d, want %d", cfg.Editor.TabSize, 2)
 	}
@@ -144,9 +137,6 @@ func TestLoadPartialJSON(t *testing.T) {
 		t.Errorf("Editor.TabSize = %d, want %d", cfg.Editor.TabSize, 8)
 	}
 	// These should remain at default values
-	if cfg.KeyMode != "vim" {
-		t.Errorf("KeyMode = %q, want default %q", cfg.KeyMode, "vim")
-	}
 	if cfg.Editor.ShowLineNumbers != true {
 		t.Errorf("Editor.ShowLineNumbers = %v, want default true", cfg.Editor.ShowLineNumbers)
 	}
@@ -160,7 +150,6 @@ func TestSaveAndLoadRoundtrip(t *testing.T) {
 	path := filepath.Join(dir, "subdir", "config.json")
 
 	original := &Config{
-		KeyMode: "vim",
 		Editor: EditorConfig{
 			TabSize:         3,
 			ShowLineNumbers: false,
@@ -197,7 +186,6 @@ func TestSaveDefaultAndLoadDefault(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpHome, ".config"))
 
 	cfg := &Config{
-		KeyMode: "vim",
 		Editor: EditorConfig{
 			TabSize:         2,
 			ShowLineNumbers: true,
@@ -217,9 +205,6 @@ func TestSaveDefaultAndLoadDefault(t *testing.T) {
 		t.Fatalf("LoadDefault() error = %v", err)
 	}
 
-	if loaded.KeyMode != cfg.KeyMode {
-		t.Errorf("KeyMode = %q, want %q", loaded.KeyMode, cfg.KeyMode)
-	}
 	if loaded.Editor != cfg.Editor {
 		t.Errorf("Editor = %+v, want %+v", loaded.Editor, cfg.Editor)
 	}

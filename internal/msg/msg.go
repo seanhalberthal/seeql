@@ -16,49 +16,6 @@ const (
 	PaneResults
 )
 
-// KeyMode represents the active keybinding mode.
-type KeyMode int
-
-const (
-	KeyModeStandard KeyMode = iota
-	KeyModeVim
-)
-
-func (m KeyMode) String() string {
-	if m == KeyModeVim {
-		return "vim"
-	}
-	return "standard"
-}
-
-// ParseKeyMode parses a string into a KeyMode.
-func ParseKeyMode(s string) KeyMode {
-	if s == "vim" {
-		return KeyModeVim
-	}
-	return KeyModeStandard
-}
-
-// VimState tracks vim mode state.
-type VimState int
-
-const (
-	VimNormal VimState = iota
-	VimInsert
-	VimVisual
-)
-
-func (s VimState) String() string {
-	switch s {
-	case VimInsert:
-		return "INSERT"
-	case VimVisual:
-		return "VISUAL"
-	default:
-		return "NORMAL"
-	}
-}
-
 // FocusMsg requests a pane focus change.
 type FocusMsg struct {
 	Pane Pane
@@ -151,9 +108,6 @@ type StatusMsg struct {
 	IsError  bool
 	Duration time.Duration
 }
-
-// ToggleKeyModeMsg switches between vim and standard keybindings.
-type ToggleKeyModeMsg struct{}
 
 // ExportRequestMsg requests exporting results.
 type ExportRequestMsg struct {

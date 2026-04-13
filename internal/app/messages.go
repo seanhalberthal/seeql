@@ -8,8 +8,6 @@ import appmsg "github.com/seanhalberthal/seeql/internal/msg"
 // Re-export types used within app package.
 type (
 	Pane              = appmsg.Pane
-	KeyMode           = appmsg.KeyMode
-	VimState          = appmsg.VimState
 	ConnectMsg        = appmsg.ConnectMsg
 	ConnectErrMsg     = appmsg.ConnectErrMsg
 	DisconnectMsg     = appmsg.DisconnectMsg
@@ -24,7 +22,6 @@ type (
 	CloseTabMsg       = appmsg.CloseTabMsg
 	SwitchTabMsg      = appmsg.SwitchTabMsg
 	StatusMsg         = appmsg.StatusMsg
-	ToggleKeyModeMsg  = appmsg.ToggleKeyModeMsg
 	InsertTextMsg     = appmsg.InsertTextMsg
 	ExportCompleteMsg = appmsg.ExportCompleteMsg
 	ExportErrMsg      = appmsg.ExportErrMsg
@@ -32,15 +29,7 @@ type (
 
 // Re-export constants.
 const (
-	PaneSidebar     = appmsg.PaneSidebar
-	PaneEditor      = appmsg.PaneEditor
-	PaneResults     = appmsg.PaneResults
-	KeyModeStandard = appmsg.KeyModeStandard
-	KeyModeVim      = appmsg.KeyModeVim
-	VimNormal       = appmsg.VimNormal
-	VimInsert       = appmsg.VimInsert
-	VimVisual       = appmsg.VimVisual
+	PaneSidebar = appmsg.PaneSidebar
+	PaneEditor  = appmsg.PaneEditor
+	PaneResults = appmsg.PaneResults
 )
-
-// Re-export functions.
-var ParseKeyMode = appmsg.ParseKeyMode

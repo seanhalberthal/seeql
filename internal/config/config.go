@@ -9,7 +9,6 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	KeyMode     string            `json:"keymode"`
 	Editor      EditorConfig      `json:"editor"`
 	Results     ResultsConfig     `json:"results"`
 	Audit       AuditConfig       `json:"audit"`
@@ -45,7 +44,6 @@ type SavedConnection struct {
 // DefaultConfig returns a Config populated with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		KeyMode: "vim",
 		Editor: EditorConfig{
 			TabSize:         4,
 			ShowLineNumbers: true,

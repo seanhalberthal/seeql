@@ -83,11 +83,29 @@ func (m Model) View() string {
 
 	th := theme.Current
 
+	// Reserve space for the "+" button (3 chars + 2 padding).
+	const newBtnWidth = 5
+	available := m.width - newBtnWidth
+
+	// Calculate how much space each tab title can use.
+	tabCount := len(m.tabs)
+	padding := 2 // 1 left + 1 right from PaddingLeft/Right
+	maxTitleLen := 0
+	if tabCount > 0 && available > 0 {
+		maxTitleLen = available/tabCount - padding
+		if maxTitleLen < 3 {
+			maxTitleLen = 3
+		}
+	}
+
 	var tabs []string
 	for i, tab := range m.tabs {
 		title := tab.Title
 		if tab.Modified {
 			title += " *"
+		}
+		if maxTitleLen > 0 && len(title) > maxTitleLen {
+			title = title[:maxTitleLen-1] + "\u2026"
 		}
 
 		var style lipgloss.Style
@@ -99,8 +117,7 @@ func (m Model) View() string {
 		tabs = append(tabs, style.Render(title))
 	}
 
-	newTabBtn := th.TabInactive.Render(" + ")
-	tabs = append(tabs, newTabBtn)
+	tabs = append(tabs, th.TabInactive.Render(" + "))
 
 	bar := lipgloss.JoinHorizontal(lipgloss.Bottom, tabs...)
 	return th.TabBar.Width(m.width).Render(bar)

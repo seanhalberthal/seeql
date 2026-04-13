@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test Commands
 
 ```bash
-make build              # CGO_ENABLED=0, pure Go
+make build              # Pure Go, no CGO
 make build-all          # Cross-compile all release targets (linux/darwin/windows)
 make test               # go test ./...
 make test-race          # go test -race ./...
@@ -28,7 +28,7 @@ SEEQL_PG_DSN="postgres://user:pass@host/db" go test ./internal/adapter/postgres/
 ```
 Integration tests auto-skip if PostgreSQL is unavailable.
 
-Version info is injected via LDFLAGS from git tags/commit/date. Releases use `make build-all` + `gh release create` (targets: linux/darwin amd64+arm64, windows amd64). Homebrew tap at `seanhalberthal/homebrew-tap`. Release archives follow naming `seeql_X.Y.Z_{os}_{arch}.tar.gz`.
+**Always use `make build` instead of `go build ./...`** — version info is injected via LDFLAGS from git tags/commit/date. Running `go build` directly produces a binary without version metadata. Releases use `make build-all` + `gh release create` (targets: linux/darwin amd64+arm64, windows amd64). Homebrew tap at `seanhalberthal/homebrew-tap`. Release archives follow naming `seeql_X.Y.Z_{os}_{arch}.tar.gz`.
 
 ## Architecture
 

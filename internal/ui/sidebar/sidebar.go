@@ -133,12 +133,7 @@ func (m Model) View() string {
 
 	// Title
 	title := " Schema Browser "
-	var titleStyle lipgloss.Style
-	if m.focused {
-		titleStyle = th.SidebarTitle.Copy().Background(lipgloss.Color("#569CD6"))
-	} else {
-		titleStyle = th.SidebarTitle
-	}
+	titleStyle := th.SidebarTitle
 	titleLine := titleStyle.Width(innerW).Render(title)
 
 	if m.loading {

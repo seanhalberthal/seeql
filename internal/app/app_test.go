@@ -20,21 +20,15 @@ func TestNew(t *testing.T) {
 	cfg := config.DefaultConfig()
 	m := New(cfg, nil, nil)
 
-	t.Run("focusedPane is PaneResults", func(t *testing.T) {
-		if m.focusedPane != PaneResults {
-			t.Errorf("focusedPane = %d, want PaneResults (%d)", m.focusedPane, PaneResults)
+	t.Run("focusedPane is PaneSidebar", func(t *testing.T) {
+		if m.focusedPane != PaneSidebar {
+			t.Errorf("focusedPane = %d, want PaneSidebar (%d)", m.focusedPane, PaneSidebar)
 		}
 	})
 
 	t.Run("showSidebar is true", func(t *testing.T) {
 		if !m.showSidebar {
 			t.Error("showSidebar should be true by default")
-		}
-	})
-
-	t.Run("keyMode matches config vim", func(t *testing.T) {
-		if m.keyMode != KeyModeVim {
-			t.Errorf("keyMode = %d, want KeyModeVim (%d)", m.keyMode, KeyModeVim)
 		}
 	})
 
@@ -105,60 +99,23 @@ func TestNew(t *testing.T) {
 		}
 	})
 
-	t.Run("vim keymap is used", func(t *testing.T) {
-		// Verify that VimUp has keys (vim mode is default)
-		if len(m.keyMap.VimUp.Keys()) == 0 {
-			t.Error("keyMap.VimUp should have keys in vim mode")
+	t.Run("standard keymap is used", func(t *testing.T) {
+		if !containsKey(m.keyMap.Quit, "ctrl+q") {
+			t.Error("keyMap.Quit should contain ctrl+q")
+		}
+		if !containsKey(m.keyMap.ExecuteQuery, "f5") {
+			t.Error("keyMap.ExecuteQuery should contain f5")
 		}
 	})
 }
 
-// ---------------------------------------------------------------------------
-// TestNew_VimMode
-// ---------------------------------------------------------------------------
-
-func TestNew_VimMode(t *testing.T) {
+func TestNew_DefaultsUnchanged(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.KeyMode = "vim"
 	m := New(cfg, nil, nil)
 
-	t.Run("keyMode is KeyModeVim", func(t *testing.T) {
-		if m.keyMode != KeyModeVim {
-			t.Errorf("keyMode = %d, want KeyModeVim (%d)", m.keyMode, KeyModeVim)
-		}
-	})
-
-	t.Run("VimKeyMap is used", func(t *testing.T) {
-		// Vim keymap should have vim-specific bindings
-		if len(m.keyMap.VimUp.Keys()) == 0 {
-			t.Error("VimKeyMap.VimUp should have keys")
-		}
-		if !containsKey(m.keyMap.VimUp, "k") {
-			t.Errorf("VimKeyMap.VimUp keys = %v, want to contain %q", m.keyMap.VimUp.Keys(), "k")
-		}
-		if !containsKey(m.keyMap.VimDown, "j") {
-			t.Errorf("VimKeyMap.VimDown keys = %v, want to contain %q", m.keyMap.VimDown.Keys(), "j")
-		}
-		if !containsKey(m.keyMap.VimInsert, "i") {
-			t.Errorf("VimKeyMap.VimInsert keys = %v, want to contain %q", m.keyMap.VimInsert.Keys(), "i")
-		}
-		if !containsKey(m.keyMap.VimEscape, "esc") {
-			t.Errorf("VimKeyMap.VimEscape keys = %v, want to contain %q", m.keyMap.VimEscape.Keys(), "esc")
-		}
-	})
-
-	t.Run("standard bindings still present", func(t *testing.T) {
-		if !containsKey(m.keyMap.Quit, "ctrl+q") {
-			t.Errorf("VimKeyMap.Quit should still contain ctrl+q")
-		}
-		if !containsKey(m.keyMap.ExecuteQuery, "f5") {
-			t.Errorf("VimKeyMap.ExecuteQuery should contain f5")
-		}
-	})
-
 	t.Run("other defaults unchanged", func(t *testing.T) {
-		if m.focusedPane != PaneResults {
-			t.Errorf("focusedPane = %d, want PaneResults", m.focusedPane)
+		if m.focusedPane != PaneSidebar {
+			t.Errorf("focusedPane = %d, want PaneSidebar", m.focusedPane)
 		}
 		if !m.showSidebar {
 			t.Error("showSidebar should be true by default")
@@ -310,11 +267,11 @@ func TestUpdate_SwitchTabMsg_BlursInactiveTabs(t *testing.T) {
 		m = model.(Model)
 	}
 
-	// Switch to tab 0 and ensure its results are focused.
+	// Switch to tab 0 — focus should stay on sidebar (the default pane).
 	model, _ = m.Update(SwitchTabMsg{TabID: 0})
 	m = model.(Model)
-	if ts := m.tabStates[0]; ts == nil || !ts.Results.Focused() {
-		t.Fatal("expected tab 0 results focused before switching")
+	if !m.sidebar.Focused() {
+		t.Fatal("expected sidebar focused after switching tabs")
 	}
 
 	// Simulate Ctrl+] path where tab model advances active tab before message delivery.
@@ -328,8 +285,9 @@ func TestUpdate_SwitchTabMsg_BlursInactiveTabs(t *testing.T) {
 	if m.tabs.ActiveID() != 1 {
 		t.Fatalf("expected active tab ID 1, got %d", m.tabs.ActiveID())
 	}
-	if ts := m.tabStates[1]; ts == nil || !ts.Results.Focused() {
-		t.Fatal("expected tab 1 results focused after switch")
+	// Sidebar stays focused across tab switches; inactive tab results should be blurred.
+	if !m.sidebar.Focused() {
+		t.Fatal("expected sidebar focused after tab switch")
 	}
 	if ts := m.tabStates[0]; ts != nil && ts.Results.Focused() {
 		t.Fatal("expected inactive tab 0 results blurred after switch")
@@ -435,6 +393,73 @@ func TestUpdate_ConnectMsg_CleansPreviousConnectionState(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TestCollapsedSidebarNotFocusable
+// ---------------------------------------------------------------------------
+
+func TestCollapsedSidebarNotFocusable(t *testing.T) {
+	cfg := config.DefaultConfig()
+	m := New(cfg, nil, nil)
+
+	// Give it a size so layout works.
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m = model.(Model)
+
+	t.Run("toggle sidebar moves focus to results", func(t *testing.T) {
+		// Start with sidebar focused.
+		m.setFocus(PaneSidebar)
+		if m.focusedPane != PaneSidebar {
+			t.Fatal("precondition: expected sidebar focused")
+		}
+
+		// Hide sidebar via ctrl+s.
+		model, _ = m.Update(keyMsgFromString("ctrl+s"))
+		m = model.(Model)
+
+		if m.showSidebar {
+			t.Fatal("expected sidebar hidden after ctrl+s")
+		}
+		if m.focusedPane != PaneResults {
+			t.Errorf("focusedPane = %d, want PaneResults (%d)", m.focusedPane, PaneResults)
+		}
+	})
+
+	t.Run("tab does not cycle to sidebar when hidden", func(t *testing.T) {
+		// Sidebar is already hidden from previous subtest.
+		m.setFocus(PaneResults)
+		m.cycleFocus(1)
+		if m.focusedPane != PaneResults {
+			t.Errorf("focusedPane = %d after tab cycle, want PaneResults", m.focusedPane)
+		}
+	})
+
+	t.Run("alt+1 does not focus sidebar when hidden", func(t *testing.T) {
+		// Sidebar is still hidden.
+		m.setFocus(PaneResults)
+		model, _ = m.Update(keyMsgFromString("alt+1"))
+		m = model.(Model)
+		if m.focusedPane != PaneResults {
+			t.Errorf("focusedPane = %d after alt+1, want PaneResults", m.focusedPane)
+		}
+	})
+
+	t.Run("re-show sidebar allows focus again", func(t *testing.T) {
+		// Show sidebar again.
+		model, _ = m.Update(keyMsgFromString("ctrl+s"))
+		m = model.(Model)
+		if !m.showSidebar {
+			t.Fatal("expected sidebar visible after second ctrl+s")
+		}
+
+		// Now alt+1 should work.
+		model, _ = m.Update(keyMsgFromString("alt+1"))
+		m = model.(Model)
+		if m.focusedPane != PaneSidebar {
+			t.Errorf("focusedPane = %d after alt+1, want PaneSidebar", m.focusedPane)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
 // keyMsgFromString creates a tea.KeyMsg from a string representation.
 // This handles common key names by mapping to the appropriate KeyType.
 // ---------------------------------------------------------------------------
@@ -474,8 +499,16 @@ func keyMsgFromString(s string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyCtrlC}
 	case "ctrl+q":
 		return tea.KeyMsg{Type: tea.KeyCtrlQ}
+	case "ctrl+s":
+		return tea.KeyMsg{Type: tea.KeyCtrlS}
 	case "ctrl+t":
 		return tea.KeyMsg{Type: tea.KeyCtrlT}
+	case "alt+1":
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}, Alt: true}
+	case "alt+2":
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}, Alt: true}
+	case "alt+3":
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}, Alt: true}
 	case "f1":
 		return tea.KeyMsg{Type: tea.KeyF1}
 	case "f5":
@@ -486,5 +519,138 @@ func keyMsgFromString(s string) tea.KeyMsg {
 			Type:  tea.KeyRunes,
 			Runes: []rune(s),
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestBracketKeysSwitchTabs: pressing ] switches to next tab via Update()
+// ---------------------------------------------------------------------------
+
+func TestBracketKeysSwitchTabs(t *testing.T) {
+	cfg := config.DefaultConfig()
+	m := New(cfg, nil, nil)
+
+	// Give it a window size so layout works.
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m = model.(Model)
+
+	// Create a second tab.
+	model, cmd := m.Update(NewTabMsg{})
+	m = model.(Model)
+	// Process the SwitchTabMsg from NewTab.
+	if cmd != nil {
+		model, _ = m.Update(cmd())
+		m = model.(Model)
+	}
+	if m.tabs.ActiveID() != 1 {
+		t.Fatalf("precondition: expected active tab 1 after creating second tab, got %d", m.tabs.ActiveID())
+	}
+
+	// Switch to tab 0 first.
+	model, _ = m.Update(SwitchTabMsg{TabID: 0})
+	m = model.(Model)
+	if m.tabs.ActiveID() != 0 {
+		t.Fatalf("precondition: expected active tab 0, got %d", m.tabs.ActiveID())
+	}
+
+	// Press ']' via Update — should switch to next tab.
+	bracketKey := keyMsgFromString("]")
+	t.Logf("bracket key msg: Type=%d Runes=%v String=%q", bracketKey.Type, bracketKey.Runes, bracketKey.String())
+
+	model, cmd = m.Update(bracketKey)
+	m = model.(Model)
+
+	// handleGlobalKeys should return non-nil cmd.
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd from pressing ']'")
+	}
+
+	// Process the SwitchTabMsg.
+	msg := cmd()
+	t.Logf("cmd produced msg: %T %+v", msg, msg)
+	model, _ = m.Update(msg)
+	m = model.(Model)
+
+	if m.tabs.ActiveID() != 1 {
+		t.Fatalf("expected active tab 1 after pressing ']', got %d", m.tabs.ActiveID())
+	}
+
+	// Press '[' — should switch back.
+	model, cmd = m.Update(keyMsgFromString("["))
+	m = model.(Model)
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd from pressing '['")
+	}
+	model, _ = m.Update(cmd())
+	m = model.(Model)
+	if m.tabs.ActiveID() != 0 {
+		t.Fatalf("expected active tab 0 after pressing '[', got %d", m.tabs.ActiveID())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHLColumnSelection: h/l keys move selectedCol when results focused
+// ---------------------------------------------------------------------------
+
+func TestHLColumnSelection(t *testing.T) {
+	cfg := config.DefaultConfig()
+	m := New(cfg, nil, nil)
+
+	// Give it a window size.
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m = model.(Model)
+
+	// Simulate query result arriving — this focuses results.
+	ts := m.activeTabState()
+	ts.Results.SetResults(&adapter.QueryResult{
+		Columns:  []adapter.ColumnMeta{{Name: "id"}, {Name: "name"}, {Name: "email"}},
+		Rows:     [][]string{{"1", "Alice", "alice@example.com"}},
+		RowCount: 1,
+		IsSelect: true,
+	})
+	m.setFocus(PaneResults)
+
+	if m.focusedPane != PaneResults {
+		t.Fatalf("precondition: expected results focused, got pane %d", m.focusedPane)
+	}
+	if !ts.Results.Focused() {
+		t.Fatal("precondition: results.focused should be true")
+	}
+
+	// selectedCol should start at 0.
+	if ts.Results.SelectedCol() != 0 {
+		t.Fatalf("precondition: selectedCol = %d, want 0", ts.Results.SelectedCol())
+	}
+
+	// Press 'l' — should move selectedCol to 1.
+	model, _ = m.Update(keyMsgFromString("l"))
+	m = model.(Model)
+	ts = m.activeTabState()
+	if ts.Results.SelectedCol() != 1 {
+		t.Fatalf("after 'l': selectedCol = %d, want 1", ts.Results.SelectedCol())
+	}
+
+	// Press 'l' again — should move to 2.
+	model, _ = m.Update(keyMsgFromString("l"))
+	m = model.(Model)
+	ts = m.activeTabState()
+	if ts.Results.SelectedCol() != 2 {
+		t.Fatalf("after second 'l': selectedCol = %d, want 2", ts.Results.SelectedCol())
+	}
+
+	// Press 'l' at last column — should stay at 2.
+	model, _ = m.Update(keyMsgFromString("l"))
+	m = model.(Model)
+	ts = m.activeTabState()
+	if ts.Results.SelectedCol() != 2 {
+		t.Fatalf("after third 'l' at boundary: selectedCol = %d, want 2", ts.Results.SelectedCol())
+	}
+
+	// Press 'h' — should move back to 1.
+	model, _ = m.Update(keyMsgFromString("h"))
+	m = model.(Model)
+	ts = m.activeTabState()
+	if ts.Results.SelectedCol() != 1 {
+		t.Fatalf("after 'h': selectedCol = %d, want 1", ts.Results.SelectedCol())
 	}
 }

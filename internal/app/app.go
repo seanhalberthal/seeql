@@ -12,6 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/seanhalberthal/seeql/internal/adapter"
 	"github.com/seanhalberthal/seeql/internal/audit"
@@ -41,10 +42,12 @@ type TabState struct {
 // Model is the root application model.
 type Model struct {
 	// Layout
-	width        int
-	height       int
-	sidebarWidth int
-	showSidebar  bool
+	width            int
+	height           int
+	sidebarWidth     int
+	sidebarExpanded  bool
+	sidebarNormWidth int // width before expand
+	showSidebar      bool
 
 	// Focus
 	focusedPane Pane
@@ -75,9 +78,7 @@ type Model struct {
 	dsn     string
 
 	// Keybinding
-	keyMap   KeyMap
-	keyMode  KeyMode
-	vimState VimState
+	keyMap KeyMap
 
 	// Schema loading
 	schemaCancel context.CancelFunc
@@ -93,22 +94,12 @@ type Model struct {
 
 // New creates a new app model.
 func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Model {
-	keyMode := ParseKeyMode(cfg.KeyMode)
-	var km KeyMap
-	if keyMode == KeyModeVim {
-		km = VimKeyMap()
-	} else {
-		km = StandardKeyMap()
-	}
-
-	// Theme is now a single adaptive theme — no selection needed.
-
 	compEngine := completion.NewEngine("sql")
 
 	m := Model{
 		sidebarWidth: 30,
 		showSidebar:  true,
-		focusedPane:  PaneResults,
+		focusedPane:  PaneSidebar,
 
 		sidebar:     sidebar.New(),
 		tabs:        tabs.New(),
@@ -122,20 +113,18 @@ func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Mode
 		cfg:        cfg,
 		history:    hist,
 		audit:      auditLog,
-		keyMap:     km,
-		keyMode:    keyMode,
+		keyMap:     StandardKeyMap(),
 	}
 
 	// Initialize first tab state
 	ed := editor.New(0)
 	res := results.New(0)
-	res.Focus()
 	m.tabStates[0] = &TabState{
 		Editor:  ed,
 		Results: res,
 	}
+	m.sidebar.Focus()
 
-	m.statusbar.SetKeyMode(keyMode)
 	return m
 }
 
@@ -341,6 +330,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			ts.Results.SetLoading(false)
 			if msg.Result != nil {
 				ts.Results.SetResults(msg.Result)
+				m.setFocus(PaneResults)
 			}
 			// Save to history
 			if m.history != nil && m.conn != nil && msg.Result != nil {
@@ -380,6 +370,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		ts.Results.SetLoading(false)
 		ts.Results.SetQueryDuration(msg.Duration)
 		ts.Results.SetIterator(msg.Iterator)
+		m.setFocus(PaneResults)
 		cmds = append(cmds, results.FetchFirstPage(msg.Iterator, msg.TabID))
 		// Save to history
 		if m.history != nil && m.conn != nil {
@@ -448,7 +439,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Results: results.New(tabID),
 		}
 		m.updateLayout()
-		m.setFocus(PaneResults)
 
 	case CloseTabMsg:
 		if m.executing && msg.TabID == m.executingTabID {
@@ -479,20 +469,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateLayout()
 		m.setFocus(m.focusedPane)
 
-	case ToggleKeyModeMsg:
-		if m.keyMode == KeyModeStandard {
-			m.keyMode = KeyModeVim
-			m.keyMap = VimKeyMap()
-			m.vimState = VimNormal
-		} else {
-			m.keyMode = KeyModeStandard
-			m.keyMap = StandardKeyMap()
-		}
-		m.statusbar.SetKeyMode(m.keyMode)
-		var sbCmd tea.Cmd
-		m.statusbar, sbCmd = m.statusbar.Update(msg)
-		cmds = append(cmds, sbCmd)
-
 	case autocomplete.SelectedMsg:
 		ts := m.activeTabState()
 		if ts != nil {
@@ -503,6 +479,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		ts := m.activeTabState()
 		if ts != nil {
 			ts.Editor.SetValue(msg.Query)
+			if m.conn != nil {
+				tabID := m.tabs.ActiveID()
+				query := msg.Query
+				cmds = append(cmds, func() tea.Msg {
+					return ExecuteQueryMsg{Query: query, TabID: tabID}
+				})
+			}
 		}
 
 	case connmgr.ConnectRequestMsg:
@@ -539,6 +522,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			ts.Results, cmd = ts.Results.Update(msg)
 			cmds = append(cmds, cmd)
 		}
+
+	case results.ClearYankMsg:
+		ts := m.tabStates[msg.TabID]
+		if ts != nil {
+			ts.Results, _ = ts.Results.Update(msg)
+		}
+
+	case StatusMsg:
+		var sbCmd tea.Cmd
+		m.statusbar, sbCmd = m.statusbar.Update(msg)
+		cmds = append(cmds, sbCmd)
 
 	case statusbar.ClearStatusMsg:
 		m.statusbar, _ = m.statusbar.Update(msg)
@@ -591,11 +585,11 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		m.showHelp = !m.showHelp
 		return nil
 
-	case msg.String() == "f2":
-		return func() tea.Msg { return ToggleKeyModeMsg{} }
-
 	case msg.String() == "ctrl+s":
 		m.showSidebar = !m.showSidebar
+		if !m.showSidebar && m.focusedPane == PaneSidebar {
+			m.setFocus(PaneResults)
+		}
 		m.updateLayout()
 		return nil
 
@@ -613,9 +607,9 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		m.connMgr.Show()
 		return nil
 
-	case msg.String() == "e" && m.focusedPane != PaneSidebar:
+	case msg.String() == "e":
 		m.openEditor()
-		return nil
+		return func() tea.Msg { return nil }
 
 	case msg.String() == "ctrl+h":
 		if m.histBrowser.Visible() {
@@ -632,10 +626,10 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		tabID := m.tabs.ActiveID()
 		return func() tea.Msg { return CloseTabMsg{TabID: tabID} }
 
-	case msg.String() == "ctrl+]":
+	case msg.String() == "]":
 		return m.tabs.NextTab()
 
-	case msg.String() == "ctrl+[":
+	case msg.String() == "[":
 		return m.tabs.PrevTab()
 
 	case msg.String() == "tab":
@@ -647,7 +641,9 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case msg.String() == "alt+1":
-		m.setFocus(PaneSidebar)
+		if m.showSidebar {
+			m.setFocus(PaneSidebar)
+		}
 		return nil
 
 	case msg.String() == "alt+2":
@@ -668,6 +664,18 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 
+	case msg.String() == "ctrl+f":
+		if m.sidebarExpanded {
+			m.sidebarWidth = m.sidebarNormWidth
+			m.sidebarExpanded = false
+		} else {
+			m.sidebarNormWidth = m.sidebarWidth
+			m.sidebarWidth = m.width / 2
+			m.sidebarExpanded = true
+		}
+		m.updateLayout()
+		return nil
+
 	}
 	return nil
 }
@@ -685,11 +693,6 @@ func (m *Model) handleFocusedPaneKey(msg tea.KeyMsg) tea.Cmd {
 		return cmd
 
 	case PaneResults:
-		// Open editor with 'e' key from results
-		if msg.String() == "e" {
-			m.openEditor()
-			return nil
-		}
 		var cmd tea.Cmd
 		ts.Results, cmd = ts.Results.Update(msg)
 		return cmd
@@ -751,12 +754,10 @@ func (m Model) View() string {
 	// Assemble base view
 	view := lipgloss.JoinVertical(lipgloss.Left, tabBar, content, statusBar)
 
-	// Floating editor overlay
+	// Floating editor overlay — composited on top of the base view
 	if m.showEditor && ts != nil {
 		editorOverlay := m.renderEditorOverlay(ts, mainWidth, mainHeight)
-		view = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, editorOverlay,
-			lipgloss.WithWhitespaceChars(" "),
-		)
+		view = placeOverlay(view, editorOverlay, m.width, m.height)
 	}
 
 	// Help overlay — full-screen centered
@@ -797,6 +798,53 @@ func heightOffset() int {
 		return 0
 	}
 	return n
+}
+
+// placeOverlay centres fg on top of bg, preserving the background where
+// the overlay doesn't cover. Both strings should be fully rendered.
+func placeOverlay(bg, fg string, totalW, totalH int) string {
+	bgLines := strings.Split(bg, "\n")
+	fgLines := strings.Split(fg, "\n")
+
+	fgW := lipgloss.Width(fg)
+	fgH := len(fgLines)
+
+	// Centre the overlay.
+	startX := (totalW - fgW) / 2
+	startY := (totalH - fgH) / 2
+	if startX < 0 {
+		startX = 0
+	}
+	if startY < 0 {
+		startY = 0
+	}
+
+	// Ensure bg has enough lines.
+	for len(bgLines) < totalH {
+		bgLines = append(bgLines, strings.Repeat(" ", totalW))
+	}
+
+	for i, fgLine := range fgLines {
+		bgRow := startY + i
+		if bgRow >= len(bgLines) {
+			break
+		}
+		bgLine := bgLines[bgRow]
+		bgW := ansi.StringWidth(bgLine)
+
+		// Pad background line if it's too short.
+		if bgW < totalW {
+			bgLine += strings.Repeat(" ", totalW-bgW)
+		}
+
+		// Splice: left part of bg + overlay line + right part of bg.
+		left := ansi.Truncate(bgLine, startX, "")
+		right := ansi.TruncateLeft(bgLine, startX+fgW, "")
+
+		bgLines[bgRow] = left + fgLine + right
+	}
+
+	return strings.Join(bgLines, "\n")
 }
 
 // clampViewHeight ensures the view does not exceed the terminal height.
@@ -1080,6 +1128,13 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	b.WriteString(line("Esc", "Close editor"))
 	b.WriteString("\n")
 
+	b.WriteString(sectionStyle.Render("  Layout"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+←/→", "Resize sidebar"))
+	b.WriteString("\n")
+	b.WriteString(line("Ctrl+F", "Toggle sidebar half-width"))
+	b.WriteString("\n")
+
 	b.WriteString(sectionStyle.Render("  Sidebar"))
 	b.WriteString("\n")
 	b.WriteString(line("j / k", "Navigate up/down"))
@@ -1102,7 +1157,7 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	b.WriteString("\n")
 	b.WriteString(line("X", "Close tab"))
 	b.WriteString("\n")
-	b.WriteString(line("Ctrl+] / Ctrl+[", "Next / previous tab"))
+	b.WriteString(line("[ / ]", "Previous / next tab"))
 	b.WriteString("\n")
 
 	b.WriteString("\n")

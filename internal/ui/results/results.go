@@ -12,11 +12,18 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/atotto/clipboard"
 	"github.com/mattn/go-runewidth"
 	"github.com/seanhalberthal/seeql/internal/adapter"
 	appmsg "github.com/seanhalberthal/seeql/internal/msg"
 	"github.com/seanhalberthal/seeql/internal/theme"
 )
+
+// ClearYankMsg is sent after a timeout to clear the yank confirmation.
+type ClearYankMsg struct {
+	Gen   uint64
+	TabID int
+}
 
 // FetchedPageMsg carries rows fetched asynchronously from an iterator.
 type FetchedPageMsg struct {
@@ -46,11 +53,15 @@ type Model struct {
 	tabID     int
 	width     int
 	height    int
-	focused   bool
-	loading   bool
-	message   string // status message ("INSERT 0 1", etc.)
-	queryTime time.Duration
-	err       error
+	focused     bool
+	loading     bool
+	message     string // status message ("INSERT 0 1", etc.)
+	queryTime   time.Duration
+	err         error
+	selectedCol int // currently highlighted column for cell preview
+	colOffset   int // first visible column for horizontal scrolling
+	yankMsg     string
+	yankGen     uint64
 }
 
 // New creates a new results model with sensible defaults.
@@ -92,6 +103,36 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "h", "left":
+			if m.selectedCol > 0 {
+				m.selectedCol--
+				m.ensureSelectedColVisible()
+			}
+			return m, nil
+		case "l", "right":
+			if m.selectedCol < len(m.columns)-1 {
+				m.selectedCol++
+				m.ensureSelectedColVisible()
+			}
+			return m, nil
+		case "y":
+			if len(m.columns) > 0 && len(m.rows) > 0 {
+				val := m.selectedCellValue()
+				col := m.selectedCol
+				if col >= len(m.columns) {
+					col = len(m.columns) - 1
+				}
+				colName := m.columns[col].Name
+				_ = clipboard.WriteAll(val)
+				m.yankMsg = fmt.Sprintf("Yanked %s to clipboard", colName)
+				m.yankGen++
+				gen := m.yankGen
+				tabID := m.tabID
+				return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+					return ClearYankMsg{Gen: gen, TabID: tabID}
+				})
+			}
+			return m, nil
 		case "pgdown":
 			// If we have an iterator and are near the end of loaded rows,
 			// fetch the next page.
@@ -115,6 +156,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.updateViewTop()
 		return m, cmd
 
+	case ClearYankMsg:
+		if msg.TabID == m.tabID && msg.Gen == m.yankGen {
+			m.yankMsg = ""
+		}
+		return m, nil
+
 	case appmsg.QueryResultMsg:
 		m.SetResults(msg.Result)
 		return m, nil
@@ -131,6 +178,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		if msg.Forward {
+			firstPage := len(m.allRows) == 0
 			m.allRows = append(m.allRows, msg.Rows...)
 			// Trim oldest rows if exceeding buffer limit
 			if len(m.allRows) > maxBufferedRows {
@@ -140,6 +188,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			m.rows = m.allRows
 			m.rebuildTableRows()
+			if firstPage {
+				m.table.SetCursor(0)
+			}
 		} else {
 			m.allRows = append(msg.Rows, m.allRows...)
 			m.offset -= len(msg.Rows)
@@ -174,34 +225,28 @@ func (m Model) View() string {
 
 	th := theme.Current
 
-	// Reserve space for the border (2 lines) and footer (1 line).
-	contentHeight := m.height - 3
-	if contentHeight < 1 {
-		contentHeight = 1
-	}
-
 	// Loading state.
 	if m.loading && len(m.rows) == 0 {
 		msg := th.MutedText.Render("  Executing query...")
-		return m.wrapBorder(msg, contentHeight)
+		return m.wrapBorder(msg)
 	}
 
 	// Error state.
 	if m.err != nil {
 		errText := th.ErrorText.Render("  Error: " + m.err.Error())
-		return m.wrapBorder(errText, contentHeight)
+		return m.wrapBorder(errText)
 	}
 
 	// Non-SELECT result message (INSERT, UPDATE, CREATE TABLE, etc.).
 	if m.message != "" && len(m.rows) == 0 {
 		msgText := th.SuccessText.Render("  " + m.message)
-		return m.wrapBorder(msgText, contentHeight)
+		return m.wrapBorder(msgText)
 	}
 
 	// Empty result set.
 	if len(m.columns) == 0 && len(m.rows) == 0 && m.message == "" {
 		placeholder := th.MutedText.Render("  No results — write a query and press F5 to execute")
-		return m.wrapBorder(placeholder, contentHeight)
+		return m.wrapBorder(placeholder)
 	}
 
 	// Render table with custom zebra striping.
@@ -211,7 +256,7 @@ func (m Model) View() string {
 	footer := m.buildFooter()
 
 	content := lipgloss.JoinVertical(lipgloss.Left, tableView, footer)
-	return m.wrapBorder(content, 0)
+	return m.wrapBorder(content)
 }
 
 // SetResults loads a complete QueryResult into the table.
@@ -243,6 +288,7 @@ func (m *Model) SetResults(result *adapter.QueryResult) {
 	m.rows = result.Rows
 	m.totalRows = result.RowCount
 	m.viewTop = 0
+	m.selectedCol = 0
 	if m.totalRows < 0 {
 		m.totalRows = int64(len(result.Rows))
 	}
@@ -260,6 +306,7 @@ func (m *Model) SetIterator(iter adapter.RowIterator) {
 	m.totalRows = iter.TotalRows()
 	m.offset = 0
 	m.viewTop = 0
+	m.colOffset = 0
 	m.err = nil
 	m.message = ""
 	m.allRows = nil
@@ -273,18 +320,16 @@ func (m *Model) SetIterator(iter adapter.RowIterator) {
 
 // SetSize updates the component dimensions and recalculates table layout.
 func (m *Model) SetSize(w, h int) {
-	if m.width == w && m.height == h {
-		return
-	}
+	dimChanged := m.width != w || m.height != h
 	m.width = w
 	m.height = h
 
-	// Account for border.
+	// Account for border + actual footer height.
 	innerW := w - 2
 	if innerW < 0 {
 		innerW = 0
 	}
-	innerH := h - 3 // border top/bottom + footer
+	innerH := h - 2 - m.footerLineCount() // border top/bottom + footer lines
 	if innerH < 1 {
 		innerH = 1
 	}
@@ -292,8 +337,8 @@ func (m *Model) SetSize(w, h int) {
 	m.table.SetWidth(innerW)
 	m.table.SetHeight(innerH)
 
-	// Recalculate column widths if we have data.
-	if len(m.columns) > 0 {
+	// Recalculate column widths if dimensions actually changed.
+	if dimChanged && len(m.columns) > 0 {
 		m.tableCols = autoSizeColumns(m.columns, m.rows, m.contentWidth())
 		m.table.SetColumns(m.tableCols)
 	}
@@ -338,6 +383,24 @@ func (m *Model) Blur() {
 // Focused reports whether the results table is currently focused.
 func (m Model) Focused() bool {
 	return m.focused
+}
+
+// SelectedCol returns the index of the currently highlighted column.
+func (m Model) SelectedCol() int {
+	return m.selectedCol
+}
+
+// selectedCellValue returns the value of the currently highlighted cell.
+func (m Model) selectedCellValue() string {
+	cursor := m.table.Cursor()
+	col := m.selectedCol
+	if col >= len(m.columns) {
+		col = len(m.columns) - 1
+	}
+	if cursor >= 0 && cursor < len(m.rows) && col >= 0 && col < len(m.rows[cursor]) {
+		return m.rows[cursor][col]
+	}
+	return ""
 }
 
 // SelectedRow returns the data for the currently selected row, or nil if
@@ -385,9 +448,11 @@ func (m *Model) CloseIterator() {
 
 // rebuildTable recalculates columns and repopulates the table widget.
 func (m *Model) rebuildTable() {
+	m.colOffset = 0
 	m.tableCols = autoSizeColumns(m.columns, m.rows, m.contentWidth())
 	m.table.SetColumns(m.tableCols)
 	m.rebuildTableRows()
+	m.table.GotoTop()
 }
 
 // rebuildTableRows converts [][]string rows into table.Row and sets them.
@@ -408,11 +473,115 @@ func (m *Model) contentWidth() int {
 	return w
 }
 
+// footerLineCount returns the number of lines the footer will render.
+func (m Model) footerLineCount() int {
+	n := 0
+	if len(m.columns) > 0 && len(m.rows) > 0 && m.focused {
+		n++ // cell preview
+	}
+	if m.yankMsg != "" {
+		n++ // yank confirmation
+	}
+	if m.totalRows >= 0 || len(m.allRows) > 0 || m.queryTime > 0 || m.loading {
+		n++ // stats line
+	}
+	if n == 0 {
+		n = 1 // reserve at least 1 line for footer spacing
+	}
+	return n
+}
+
+// visCol describes a column visible in the current scroll position with its
+// effective display width (which may be wider than the natural width when
+// extra space is distributed among visible columns).
+type visCol struct {
+	idx   int // index into m.tableCols / m.columns / row data
+	width int // effective content width (excluding padding)
+}
+
+// visibleColumns returns the columns that fit on screen starting from
+// colOffset, distributing any leftover horizontal space among them.
+func (m Model) visibleColumns() []visCol {
+	if len(m.tableCols) == 0 {
+		return nil
+	}
+
+	maxW := m.contentWidth()
+	start := m.colOffset
+	if start >= len(m.tableCols) {
+		start = 0
+	}
+
+	// Collect columns that fit.
+	var cols []visCol
+	used := 0
+	for i := start; i < len(m.tableCols); i++ {
+		colW := m.tableCols[i].Width + 2 // content + padding
+		if used+colW > maxW && len(cols) > 0 {
+			break
+		}
+		cols = append(cols, visCol{idx: i, width: m.tableCols[i].Width})
+		used += colW
+	}
+
+	// Distribute leftover space evenly.
+	extra := maxW - used
+	if extra > 0 && len(cols) > 0 {
+		perCol := extra / len(cols)
+		remainder := extra % len(cols)
+		for i := range cols {
+			cols[i].width += perCol
+			if i < remainder {
+				cols[i].width++
+			}
+		}
+	}
+
+	return cols
+}
+
+// ensureSelectedColVisible adjusts colOffset so that selectedCol is within
+// the visible column range.
+func (m *Model) ensureSelectedColVisible() {
+	if len(m.tableCols) == 0 {
+		return
+	}
+	if m.colOffset >= len(m.tableCols) {
+		m.colOffset = 0
+	}
+
+	// Scrolled past the left edge.
+	if m.selectedCol < m.colOffset {
+		m.colOffset = m.selectedCol
+		return
+	}
+
+	// Check whether selectedCol is already visible.
+	visCols := m.visibleColumns()
+	if len(visCols) > 0 && m.selectedCol <= visCols[len(visCols)-1].idx {
+		return
+	}
+
+	// Scroll right: place selectedCol as the last visible column.
+	maxW := m.contentWidth()
+	used := m.tableCols[m.selectedCol].Width + 2
+	newOffset := m.selectedCol
+	for i := m.selectedCol - 1; i >= 0; i-- {
+		colW := m.tableCols[i].Width + 2
+		if used+colW > maxW {
+			break
+		}
+		used += colW
+		newOffset = i
+	}
+	m.colOffset = newOffset
+}
+
 // visibleDataHeight returns the number of data rows that can be displayed,
 // accounting for the header row (1 line) and its bottom border (1 line).
 func (m Model) visibleDataHeight() int {
-	innerH := m.height - 3 // border top/bottom + footer
-	h := innerH - 2        // header + border line
+	innerH := m.height - 2 - m.footerLineCount() // border top/bottom + footer
+	h := innerH - 2                               // header + border line
 	if h < 1 {
 		h = 1
 	}
@@ -443,11 +612,12 @@ func (m Model) renderTable() string {
 	th := theme.Current
 	contentW := m.contentWidth()
 	visH := m.visibleDataHeight()
+	visCols := m.visibleColumns()
 
 	var sb strings.Builder
 
 	// Header row.
-	sb.WriteString(m.renderHeader(th, contentW))
+	sb.WriteString(m.renderHeader(th, contentW, visCols))
 	sb.WriteByte('\n')
 
 	// Header bottom border.
@@ -463,7 +633,7 @@ func (m Model) renderTable() string {
 			// Pad remaining lines so the table height stays constant.
 			sb.WriteString(strings.Repeat(" ", contentW))
 		} else {
-			sb.WriteString(m.renderDataRow(th, rowIdx, rowIdx == cursor, contentW))
+			sb.WriteString(m.renderDataRow(th, rowIdx, rowIdx == cursor, contentW, visCols))
 		}
 		if i < visH-1 {
 			sb.WriteByte('\n')
@@ -473,16 +643,19 @@ func (m Model) renderTable() string {
 	return sb.String()
 }
 
-// renderHeader renders the column header row.
-func (m Model) renderHeader(th *theme.Theme, totalWidth int) string {
+// renderHeader renders the column header row using only the visible columns.
+func (m Model) renderHeader(th *theme.Theme, totalWidth int, visCols []visCol) string {
 	var sb strings.Builder
 	used := 0
-	for _, col := range m.tableCols {
-		cellWidth := col.Width + 2 // +2 for Padding(0,1)
-		text := runewidth.Truncate(col.Title, col.Width, "…")
-		text = padRight(text, col.Width)
-		rendered := th.ResultsHeader.Render(text)
-		sb.WriteString(rendered)
+	for _, vc := range visCols {
+		cellWidth := vc.width + 2 // +2 for Padding(0,1)
+		text := runewidth.Truncate(m.tableCols[vc.idx].Title, vc.width, "…")
+		text = padRight(text, vc.width)
+		style := th.ResultsHeader
+		if m.focused && vc.idx == m.selectedCol {
+			style = th.ResultsHeaderSelected
+		}
+		sb.WriteString(style.Render(text))
 		used += cellWidth
 	}
 	// Pad remainder so the header background fills the full width.
@@ -492,8 +665,9 @@ func (m Model) renderHeader(th *theme.Theme, totalWidth int) string {
 	return sb.String()
 }
 
-// renderDataRow renders a single data row with zebra striping.
-func (m Model) renderDataRow(th *theme.Theme, rowIdx int, selected bool, totalWidth int) string {
+// renderDataRow renders a single data row with zebra striping using only
+// the visible columns.
+func (m Model) renderDataRow(th *theme.Theme, rowIdx int, selected bool, totalWidth int, visCols []visCol) string {
 	var cellStyle lipgloss.Style
 	switch {
 	case selected:
@@ -507,14 +681,14 @@ func (m Model) renderDataRow(th *theme.Theme, rowIdx int, selected bool, totalWi
 	row := m.rows[rowIdx]
 	var sb strings.Builder
 	used := 0
-	for j, col := range m.tableCols {
-		cellWidth := col.Width + 2 // +2 for Padding(0,1)
+	for _, vc := range visCols {
+		cellWidth := vc.width + 2 // +2 for Padding(0,1)
 		var val string
-		if j < len(row) {
-			val = row[j]
+		if vc.idx < len(row) {
+			val = row[vc.idx]
 		}
-		text := runewidth.Truncate(val, col.Width, "…")
-		text = padRight(text, col.Width)
+		text := runewidth.Truncate(val, vc.width, "…")
+		text = padRight(text, vc.width)
 		rendered := cellStyle.Render(text)
 		sb.WriteString(rendered)
 		used += cellWidth
@@ -535,39 +709,73 @@ func padRight(s string, w int) string {
 	return s + strings.Repeat(" ", w-sw)
 }
 
-// buildFooter constructs the row count and timing footer line.
+// buildFooter constructs the cell preview and row count footer.
 func (m Model) buildFooter() string {
 	th := theme.Current
-	var parts []string
+	var lines []string
 
-	// Row count.
+	// Cell preview — show the full value of the selected column for the
+	// current row so truncated values can be read.
+	if len(m.columns) > 0 && len(m.rows) > 0 && m.focused {
+		cursor := m.table.Cursor()
+		col := m.selectedCol
+		if col >= len(m.columns) {
+			col = len(m.columns) - 1
+		}
+		colName := m.columns[col].Name
+		val := ""
+		if cursor >= 0 && cursor < len(m.rows) && col < len(m.rows[cursor]) {
+			val = m.rows[cursor][col]
+		}
+		if val == "" {
+			val = "NULL"
+		}
+		maxW := m.contentWidth()
+		preview := fmt.Sprintf("  %s: %s", colName, val)
+		if runewidth.StringWidth(preview) > maxW && maxW > 4 {
+			preview = runewidth.Truncate(preview, maxW, "...")
+		}
+		lines = append(lines, th.MutedText.Render(preview))
+	}
+
+	// Yank confirmation.
+	if m.yankMsg != "" {
+		lines = append(lines, th.SuccessText.Render("  "+m.yankMsg))
+	}
+
+	// Stats line.
+	var parts []string
 	switch {
 	case m.totalRows >= 0:
 		parts = append(parts, fmt.Sprintf("%d rows", m.totalRows))
 	case len(m.allRows) > 0:
 		parts = append(parts, fmt.Sprintf("%d rows loaded", len(m.allRows)))
 	}
-
-	// Query duration.
 	if m.queryTime > 0 {
 		parts = append(parts, fmt.Sprintf("%s", formatDuration(m.queryTime)))
 	}
-
-	// Loading indicator.
 	if m.loading {
 		parts = append(parts, "loading...")
 	}
-
-	if len(parts) == 0 {
-		return ""
+	// Column scroll indicator when not all columns fit on screen.
+	if visCols := m.visibleColumns(); len(m.tableCols) > 0 && len(visCols) < len(m.tableCols) {
+		first := visCols[0].idx + 1
+		last := visCols[len(visCols)-1].idx + 1
+		parts = append(parts, fmt.Sprintf("cols %d–%d of %d", first, last, len(m.tableCols)))
+	}
+	if len(parts) > 0 {
+		lines = append(lines, th.MutedText.Render("  "+strings.Join(parts, " | ")))
 	}
 
-	footer := "  " + strings.Join(parts, " | ")
-	return th.MutedText.Render(footer)
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n")
 }
 
-// wrapBorder renders the content inside a themed border frame.
-func (m Model) wrapBorder(content string, minHeight int) string {
+// wrapBorder renders the content inside a themed border frame that fills
+// the full allocated height.
+func (m Model) wrapBorder(content string) string {
 	th := theme.Current
 
 	var borderStyle lipgloss.Style
@@ -582,12 +790,12 @@ func (m Model) wrapBorder(content string, minHeight int) string {
 		innerW = 0
 	}
 
-	style := borderStyle.Width(innerW)
-	if minHeight > 0 {
-		style = style.Height(minHeight)
+	innerH := m.height - 2 // border top + bottom
+	if innerH < 1 {
+		innerH = 1
 	}
 
-	return style.Render(content)
+	return borderStyle.Width(innerW).Height(innerH).Render(content)
 }
 
 // applyStyles updates the table styles based on the current theme and focus.
@@ -659,10 +867,10 @@ func fetchPrevPage(iter adapter.RowIterator, tabID int) tea.Cmd {
 // Column auto-sizing
 // ---------------------------------------------------------------------------
 
-// autoSizeColumns calculates column widths based on header names and data
-// content, distributing available space proportionally and capping individual
-// columns at maxWidth.
-func autoSizeColumns(cols []adapter.ColumnMeta, rows [][]string, maxWidth int) []table.Column {
+// autoSizeColumns calculates natural column widths based on header names and
+// data content, capping individual columns at 50 characters. Horizontal
+// scrolling handles overflow when columns exceed available width.
+func autoSizeColumns(cols []adapter.ColumnMeta, rows [][]string, _ int) []table.Column {
 	if len(cols) == 0 {
 		return nil
 	}
@@ -700,31 +908,7 @@ func autoSizeColumns(cols []adapter.ColumnMeta, rows [][]string, maxWidth int) [
 		}
 	}
 
-	// Calculate total desired width. The bubbles/table component adds no
-	// separator between columns; spacing comes from the Cell style's
-	// Padding(0, 1) which adds 2 characters per column (1 left + 1 right).
-	paddingWidth := numCols * 2
-	totalDesired := paddingWidth
-	for _, w := range widths {
-		totalDesired += w
-	}
-
-	// If the total exceeds the available width, scale columns down
-	// proportionally.
-	available := maxWidth - paddingWidth
-	if available < numCols {
-		available = numCols
-	}
-
-	if totalDesired > maxWidth {
-		totalColWidth := totalDesired - paddingWidth
-		for i := range widths {
-			widths[i] = (widths[i] * available) / totalColWidth
-			if widths[i] < 2 {
-				widths[i] = 2
-			}
-		}
-	}
+	// No proportional scaling — horizontal scrolling handles overflow.
 
 	// Build table.Column slice.
 	tableCols := make([]table.Column, numCols)

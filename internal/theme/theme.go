@@ -40,8 +40,9 @@ type Theme struct {
 
 	// Results table
 	ResultsBorder      lipgloss.Style
-	ResultsHeader      lipgloss.Style
-	ResultsCell        lipgloss.Style
+	ResultsHeader         lipgloss.Style
+	ResultsHeaderSelected lipgloss.Style
+	ResultsCell           lipgloss.Style
 	ResultsCellAlt     lipgloss.Style
 	ResultsSelectedRow lipgloss.Style
 	ResultsNull        lipgloss.Style
@@ -126,7 +127,8 @@ func newAdaptiveTheme() *Theme {
 			BorderForeground(fgBorder),
 		SidebarTitle: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(fgAccent).
+			Foreground(lipgloss.AdaptiveColor{Light: "15", Dark: "0"}).
+			Background(fgAccent).
 			PaddingLeft(1),
 		SidebarDatabase: lipgloss.NewStyle().
 			Bold(true).
@@ -184,6 +186,11 @@ func newAdaptiveTheme() *Theme {
 			Bold(true).
 			Foreground(fgAccent).
 			Padding(0, 1),
+		ResultsHeaderSelected: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ansiBrightWhite).
+			Background(fgAccent).
+			Padding(0, 1),
 		ResultsCell: lipgloss.NewStyle().
 			Foreground(fgDefault).
 			Padding(0, 1),
@@ -203,20 +210,21 @@ func newAdaptiveTheme() *Theme {
 		// Tab bar
 		TabActive: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(fgAccent).
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderBottom(false).
-			BorderForeground(fgAccent).
+			Foreground(ansiBrightWhite).
+			Background(fgAccent).
 			PaddingLeft(1).
 			PaddingRight(1),
 		TabInactive: lipgloss.NewStyle().
 			Foreground(fgMuted).
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderBottom(true).
-			BorderForeground(fgBorder).
 			PaddingLeft(1).
 			PaddingRight(1),
-		TabBar: noBg,
+		TabBar: lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderTop(false).
+			BorderLeft(false).
+			BorderRight(false).
+			BorderBottom(true).
+			BorderForeground(fgBorder),
 
 		// Status bar — subtle, not heavy
 		StatusBar: lipgloss.NewStyle().

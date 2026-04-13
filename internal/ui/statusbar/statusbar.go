@@ -23,9 +23,7 @@ type Model struct {
 	dsn          string
 	queryTime    time.Duration
 	rowCount     int64
-	keyMode      appmsg.KeyMode
-	vimState     appmsg.VimState
-	message      string
+	message string
 	isError      bool
 	clearGen     uint64
 	cursorLine   int
@@ -37,7 +35,6 @@ type Model struct {
 func New() Model {
 	return Model{
 		rowCount: -1,
-		keyMode:  appmsg.KeyModeStandard,
 	}
 }
 
@@ -115,12 +112,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.message = ""
 		m.isError = false
 
-	case appmsg.ToggleKeyModeMsg:
-		if m.keyMode == appmsg.KeyModeStandard {
-			m.keyMode = appmsg.KeyModeVim
-		} else {
-			m.keyMode = appmsg.KeyModeStandard
-		}
 	}
 
 	return m, nil
@@ -171,12 +162,8 @@ func (m Model) View() string {
 			hintSep.Render(" Quit ")
 	}
 
-	// Right section: key mode + cursor position
-	modeStr := fmt.Sprintf(" %s ", m.keyMode)
-	if m.keyMode == appmsg.KeyModeVim {
-		modeStr = fmt.Sprintf(" %s:%s ", m.keyMode, m.vimState)
-	}
-	right := th.StatusBarKey.Render(modeStr)
+	// Right section: cursor position
+	var right string
 	if m.cursorLine > 0 {
 		right += th.StatusBarValue.Render(fmt.Sprintf(" %d:%d ", m.cursorLine, m.cursorCol))
 	}
@@ -211,21 +198,6 @@ func (m *Model) SetSize(width int) {
 func (m *Model) SetCursor(line, col int) {
 	m.cursorLine = line
 	m.cursorCol = col
-}
-
-// SetVimState updates the vim state display.
-func (m *Model) SetVimState(state appmsg.VimState) {
-	m.vimState = state
-}
-
-// KeyMode returns the current key mode.
-func (m Model) KeyMode() appmsg.KeyMode {
-	return m.keyMode
-}
-
-// SetKeyMode sets the key mode.
-func (m *Model) SetKeyMode(mode appmsg.KeyMode) {
-	m.keyMode = mode
 }
 
 func formatDuration(d time.Duration) string {
