@@ -24,7 +24,6 @@ type KeyMap struct {
 	// App
 	Quit          key.Binding
 	Help          key.Binding
-	ToggleKeyMode key.Binding
 	ToggleSidebar key.Binding
 	RefreshSchema key.Binding
 	OpenConnMgr   key.Binding
@@ -36,20 +35,6 @@ type KeyMap struct {
 	ResizeRight key.Binding
 	ResizeUp    key.Binding
 	ResizeDown  key.Binding
-
-	// Vim normal mode
-	VimUp     key.Binding
-	VimDown   key.Binding
-	VimLeft   key.Binding
-	VimRight  key.Binding
-	VimInsert key.Binding
-	VimAppend key.Binding
-	VimEscape key.Binding
-	VimTop    key.Binding
-	VimBottom key.Binding
-	VimSearch key.Binding
-	VimVisual key.Binding
-	VimYank   key.Binding
 }
 
 // StandardKeyMap returns keybindings for standard mode.
@@ -84,16 +69,16 @@ func StandardKeyMap() KeyMap {
 			key.WithHelp("ctrl+w", "close tab"),
 		),
 		NextTab: key.NewBinding(
-			key.WithKeys("ctrl+pgdown", "ctrl+]"),
-			key.WithHelp("ctrl+pgdn", "next tab"),
+			key.WithKeys("ctrl+pgdown", "]"),
+			key.WithHelp("]", "next tab"),
 		),
 		PrevTab: key.NewBinding(
-			key.WithKeys("ctrl+pgup", "ctrl+["),
-			key.WithHelp("ctrl+pgup", "prev tab"),
+			key.WithKeys("ctrl+pgup", "["),
+			key.WithHelp("[", "prev tab"),
 		),
 		ExecuteQuery: key.NewBinding(
-			key.WithKeys("ctrl+enter", "f5", "ctrl+g"),
-			key.WithHelp("ctrl+enter", "run query"),
+			key.WithKeys("f5", "ctrl+g"),
+			key.WithHelp("f5", "run query"),
 		),
 		CancelQuery: key.NewBinding(
 			key.WithKeys("ctrl+c"),
@@ -107,13 +92,9 @@ func StandardKeyMap() KeyMap {
 			key.WithKeys("f1"),
 			key.WithHelp("f1", "help"),
 		),
-		ToggleKeyMode: key.NewBinding(
-			key.WithKeys("f2"),
-			key.WithHelp("f2", "vim/standard"),
-		),
 		ToggleSidebar: key.NewBinding(
-			key.WithKeys("ctrl+b"),
-			key.WithHelp("ctrl+b", "toggle sidebar"),
+			key.WithKeys("ctrl+s"),
+			key.WithHelp("ctrl+s", "toggle sidebar"),
 		),
 		RefreshSchema: key.NewBinding(
 			key.WithKeys("ctrl+r"),
@@ -150,62 +131,6 @@ func StandardKeyMap() KeyMap {
 	}
 }
 
-// VimKeyMap returns keybindings for vim mode.
-func VimKeyMap() KeyMap {
-	km := StandardKeyMap()
-
-	km.VimUp = key.NewBinding(
-		key.WithKeys("k"),
-		key.WithHelp("k", "up"),
-	)
-	km.VimDown = key.NewBinding(
-		key.WithKeys("j"),
-		key.WithHelp("j", "down"),
-	)
-	km.VimLeft = key.NewBinding(
-		key.WithKeys("h"),
-		key.WithHelp("h", "left"),
-	)
-	km.VimRight = key.NewBinding(
-		key.WithKeys("l"),
-		key.WithHelp("l", "right"),
-	)
-	km.VimInsert = key.NewBinding(
-		key.WithKeys("i"),
-		key.WithHelp("i", "insert"),
-	)
-	km.VimAppend = key.NewBinding(
-		key.WithKeys("a"),
-		key.WithHelp("a", "append"),
-	)
-	km.VimEscape = key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "normal mode"),
-	)
-	km.VimTop = key.NewBinding(
-		key.WithKeys("g"),
-		key.WithHelp("gg", "top"),
-	)
-	km.VimBottom = key.NewBinding(
-		key.WithKeys("G"),
-		key.WithHelp("G", "bottom"),
-	)
-	km.VimSearch = key.NewBinding(
-		key.WithKeys("/"),
-		key.WithHelp("/", "search"),
-	)
-	km.VimVisual = key.NewBinding(
-		key.WithKeys("v"),
-		key.WithHelp("v", "visual"),
-	)
-	km.VimYank = key.NewBinding(
-		key.WithKeys("y"),
-		key.WithHelp("y", "yank"),
-	)
-
-	return km
-}
-
 // ShortHelp returns a subset of keybindings for the short help view.
 func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
@@ -219,7 +144,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.ExecuteQuery, k.CancelQuery, k.Export},
 		{k.FocusNext, k.FocusPrev, k.FocusSidebar, k.FocusEditor, k.FocusResults},
 		{k.NewTab, k.CloseTab, k.NextTab, k.PrevTab},
-		{k.ToggleKeyMode, k.ToggleSidebar, k.RefreshSchema, k.OpenConnMgr, k.History},
+		{k.ToggleSidebar, k.RefreshSchema, k.OpenConnMgr, k.History},
 		{k.ResizeLeft, k.ResizeRight, k.ResizeUp, k.ResizeDown},
 		{k.Quit, k.Help},
 	}

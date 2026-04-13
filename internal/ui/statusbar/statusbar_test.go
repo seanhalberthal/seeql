@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	appmsg "github.com/sadopc/gotermsql/internal/msg"
-	"github.com/sadopc/gotermsql/internal/schema"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	appmsg "github.com/seanhalberthal/seeql/internal/msg"
+	"github.com/seanhalberthal/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 func init() {
@@ -57,9 +57,6 @@ func TestNew(t *testing.T) {
 
 	if m.rowCount != -1 {
 		t.Fatalf("expected rowCount=-1, got %d", m.rowCount)
-	}
-	if m.keyMode != appmsg.KeyModeStandard {
-		t.Fatalf("expected KeyModeStandard, got %v", m.keyMode)
 	}
 	if m.connected {
 		t.Fatal("expected connected=false")
@@ -245,26 +242,6 @@ func TestUpdate_StatusMsg_NoDuration(t *testing.T) {
 	}
 }
 
-func TestUpdate_ToggleKeyModeMsg(t *testing.T) {
-	m := New()
-
-	if m.keyMode != appmsg.KeyModeStandard {
-		t.Fatalf("expected KeyModeStandard, got %v", m.keyMode)
-	}
-
-	// Toggle to vim.
-	m, _ = m.Update(appmsg.ToggleKeyModeMsg{})
-	if m.keyMode != appmsg.KeyModeVim {
-		t.Fatalf("expected KeyModeVim after toggle, got %v", m.keyMode)
-	}
-
-	// Toggle back to standard.
-	m, _ = m.Update(appmsg.ToggleKeyModeMsg{})
-	if m.keyMode != appmsg.KeyModeStandard {
-		t.Fatalf("expected KeyModeStandard after second toggle, got %v", m.keyMode)
-	}
-}
-
 func TestSetCursor(t *testing.T) {
 	m := New()
 	m.SetCursor(10, 25)
@@ -274,28 +251,6 @@ func TestSetCursor(t *testing.T) {
 	}
 	if m.cursorCol != 25 {
 		t.Fatalf("expected cursorCol=25, got %d", m.cursorCol)
-	}
-}
-
-func TestKeyMode(t *testing.T) {
-	m := New()
-
-	if m.KeyMode() != appmsg.KeyModeStandard {
-		t.Fatalf("expected KeyModeStandard")
-	}
-
-	m.SetKeyMode(appmsg.KeyModeVim)
-	if m.KeyMode() != appmsg.KeyModeVim {
-		t.Fatalf("expected KeyModeVim after SetKeyMode")
-	}
-}
-
-func TestSetVimState(t *testing.T) {
-	m := New()
-	m.SetVimState(appmsg.VimInsert)
-
-	if m.vimState != appmsg.VimInsert {
-		t.Fatalf("expected VimInsert, got %v", m.vimState)
 	}
 }
 
@@ -359,18 +314,6 @@ func TestView_WithError(t *testing.T) {
 	view := m.View()
 	if view == "" {
 		t.Fatal("expected non-empty view with error message")
-	}
-}
-
-func TestView_VimMode(t *testing.T) {
-	m := New()
-	m.SetSize(120)
-	m.SetKeyMode(appmsg.KeyModeVim)
-	m.SetVimState(appmsg.VimInsert)
-
-	view := m.View()
-	if view == "" {
-		t.Fatal("expected non-empty view in vim mode")
 	}
 }
 

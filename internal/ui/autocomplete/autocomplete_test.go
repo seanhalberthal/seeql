@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/completion"
-	"github.com/sadopc/gotermsql/internal/schema"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/completion"
+	"github.com/seanhalberthal/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 func init() {
@@ -294,7 +294,7 @@ func TestUpdate_NotVisible(t *testing.T) {
 	m := New(nil)
 
 	// When not visible, updates should be ignored.
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	if cmd != nil {
 		t.Fatal("expected nil cmd when not visible")
 	}

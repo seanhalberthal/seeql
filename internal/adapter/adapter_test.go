@@ -231,3 +231,32 @@ func TestErrors(t *testing.T) {
 		t.Error("expected 3 distinct error messages")
 	}
 }
+
+func TestDetectAdapter(t *testing.T) {
+	tests := []struct {
+		dsn  string
+		want string
+	}{
+		{"postgres://user:pass@host/db", "postgres"},
+		{"postgresql://user@host/db", "postgres"},
+		{"postgres://user:pass@host/db?sslmode=disable", "postgres"},
+		{"postgres://user:pass@host/db?sslmode=disable&connect_timeout=10", "postgres"},
+		{"mysql://root:pass@host/db", "mysql"},
+		{"mysql://root:pass@host/db?charset=utf8mb4&tls=true", "mysql"},
+		{"root:pass@tcp(host:3306)/db", "mysql"},
+		{"root:pass@tcp(host:3306)/db?parseTime=true", "mysql"},
+		{"sqlite:///tmp/test.db", "sqlite"},
+		{"file:test.db", "sqlite"},
+		{"test.db", "sqlite"},
+		{"test.sqlite", "sqlite"},
+		{"test.sqlite3", "sqlite"},
+		{"user@host", "postgres"}, // fallback: contains @
+		{"not-a-dsn", ""},
+	}
+	for _, tt := range tests {
+		got := DetectAdapter(tt.dsn)
+		if got != tt.want {
+			t.Errorf("DetectAdapter(%q) = %q, want %q", tt.dsn, got, tt.want)
+		}
+	}
+}

@@ -1,0 +1,22 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+  settings:
+    errcheck:
+      exclude-functions:
+        - "fmt.Fprint"
+        - "fmt.Fprintf"
+        - "fmt.Fprintln"
+      check-blank: false
+  exclusions:
+    rules:
+      # Close, Rollback, Cancel, and Remove errors in defer/cleanup are
+      # conventionally ignored in Go — nothing useful to do with them.
+      - linters: [errcheck]
+        source: "\\.(Close|Rollback|Cancel|Remove)\\("

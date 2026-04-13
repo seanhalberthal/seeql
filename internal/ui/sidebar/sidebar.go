@@ -7,9 +7,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	appmsg "github.com/sadopc/gotermsql/internal/msg"
-	"github.com/sadopc/gotermsql/internal/schema"
-	"github.com/sadopc/gotermsql/internal/theme"
+	appmsg "github.com/seanhalberthal/seeql/internal/msg"
+	"github.com/seanhalberthal/seeql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 // useSimpleIcons returns true when running inside Neovim's terminal emulator,
@@ -133,12 +133,7 @@ func (m Model) View() string {
 
 	// Title
 	title := " Schema Browser "
-	var titleStyle lipgloss.Style
-	if m.focused {
-		titleStyle = th.SidebarTitle.Copy().Background(lipgloss.Color("#569CD6"))
-	} else {
-		titleStyle = th.SidebarTitle
-	}
+	titleStyle := th.SidebarTitle
 	titleLine := titleStyle.Width(innerW).Render(title)
 
 	if m.loading {

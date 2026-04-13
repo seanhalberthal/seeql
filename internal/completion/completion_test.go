@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/schema"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/schema"
 )
 
 // ---------------------------------------------------------------------------
@@ -126,7 +126,6 @@ func TestNewEngine(t *testing.T) {
 		{"postgres", PostgresKeywords[:1]},
 		{"mysql", MySQLKeywords[:1]},
 		{"sqlite", SQLiteKeywords[:1]},
-		{"duckdb", DuckDBKeywords[:1]},
 		{"sql", nil}, // generic -- no extra keywords
 	}
 
@@ -863,11 +862,6 @@ func TestKeywordsForDialect(t *testing.T) {
 			mustNotContain: []string{"SERIAL", "AUTO_INCREMENT", "PIVOT"},
 		},
 		{
-			dialect:        "duckdb",
-			mustContain:    []string{"SELECT", "PIVOT", "UNPIVOT", "QUALIFY"},
-			mustNotContain: []string{"SERIAL", "AUTO_INCREMENT", "PRAGMA"},
-		},
-		{
 			dialect:        "sql",
 			mustContain:    []string{"SELECT", "FROM", "WHERE"},
 			mustNotContain: []string{"SERIAL", "AUTO_INCREMENT", "PRAGMA", "PIVOT"},
@@ -917,7 +911,7 @@ func TestKeywordsForDialect_ReturnsNewSlice(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestFunctionsForDialect(t *testing.T) {
-	dialects := []string{"postgres", "mysql", "sqlite", "duckdb", "sql", "unknown"}
+	dialects := []string{"postgres", "mysql", "sqlite", "sql", "unknown"}
 
 	for _, d := range dialects {
 		t.Run(d, func(t *testing.T) {

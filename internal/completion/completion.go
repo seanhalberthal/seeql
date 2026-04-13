@@ -7,9 +7,9 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/sadopc/gotermsql/internal/adapter"
-	"github.com/sadopc/gotermsql/internal/schema"
 	"github.com/sahilm/fuzzy"
+	"github.com/seanhalberthal/seeql/internal/adapter"
+	"github.com/seanhalberthal/seeql/internal/schema"
 )
 
 // Engine provides SQL autocomplete suggestions based on schema and dialect.

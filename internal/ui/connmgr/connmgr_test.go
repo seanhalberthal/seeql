@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/sadopc/gotermsql/internal/config"
-	"github.com/sadopc/gotermsql/internal/theme"
+	"github.com/seanhalberthal/seeql/internal/config"
+	"github.com/seanhalberthal/seeql/internal/theme"
 )
 
 func init() {
@@ -15,7 +15,7 @@ func init() {
 
 func TestNew(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "test-pg", Adapter: "postgres", Host: "localhost"},
+		{Name: "test-pg", DSN: "postgres://localhost/testdb"},
 	}
 	m := New(conns)
 
@@ -25,8 +25,8 @@ func TestNew(t *testing.T) {
 	if m.visible {
 		t.Fatal("expected not visible initially")
 	}
-	if m.state != StateList {
-		t.Fatalf("expected StateList, got %d", m.state)
+	if m.state != StateConnect {
+		t.Fatalf("expected StateConnect, got %d", m.state)
 	}
 	if m.editing != -1 {
 		t.Fatalf("expected editing=-1, got %d", m.editing)
@@ -51,8 +51,11 @@ func TestShowAndHide(t *testing.T) {
 	if !m.Visible() {
 		t.Fatal("expected visible after Show()")
 	}
-	if m.state != StateList {
-		t.Fatalf("expected StateList after Show, got %d", m.state)
+	if m.state != StateConnect {
+		t.Fatalf("expected StateConnect after Show, got %d", m.state)
+	}
+	if m.connFocus != focusDSN {
+		t.Fatalf("expected focusDSN after Show, got %d", m.connFocus)
 	}
 	if m.cursor != 0 {
 		t.Fatalf("expected cursor=0 after Show, got %d", m.cursor)
@@ -86,8 +89,8 @@ func TestSetSize(t *testing.T) {
 
 func TestConnections(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "a"},
-		{Name: "b"},
+		{Name: "a", DSN: "postgres://a"},
+		{Name: "b", DSN: "postgres://b"},
 	}
 	m := New(conns)
 
@@ -99,7 +102,7 @@ func TestConnections(t *testing.T) {
 
 func TestSetConnections(t *testing.T) {
 	m := New(nil)
-	m.SetConnections([]config.SavedConnection{{Name: "new"}})
+	m.SetConnections([]config.SavedConnection{{Name: "new", DSN: "postgres://new"}})
 
 	if len(m.connections) != 1 {
 		t.Fatalf("expected 1 connection, got %d", len(m.connections))
@@ -117,16 +120,16 @@ func TestView_NotVisible(t *testing.T) {
 	}
 }
 
-func TestView_ListState(t *testing.T) {
+func TestView_ConnectState(t *testing.T) {
 	conns := []config.SavedConnection{
-		{Name: "test-db", Adapter: "postgres", Host: "localhost"},
+		{Name: "test-db", DSN: "postgres://localhost/testdb"},
 	}
 	m := New(conns)
 	m.Show()
 
 	view := m.View()
 	if view == "" {
-		t.Fatal("expected non-empty view in list state")
+		t.Fatal("expected non-empty view in connect state")
 	}
 }
 
@@ -152,126 +155,16 @@ func TestView_TestingState(t *testing.T) {
 	}
 }
 
-func TestUpdateList_Navigation_JK(t *testing.T) {
-	conns := []config.SavedConnection{
-		{Name: "a"},
-		{Name: "b"},
-	}
-	m := New(conns)
-	m.Show()
+// --- StateConnect: DSN input focused ---
 
-	// Move down with j.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	if m.cursor != 1 {
-		t.Fatalf("expected cursor=1 after j, got %d", m.cursor)
-	}
-
-	// Move down to "New Connection" row.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	if m.cursor != 2 {
-		t.Fatalf("expected cursor=2 after j, got %d", m.cursor)
-	}
-
-	// Move up with k.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	if m.cursor != 1 {
-		t.Fatalf("expected cursor=1 after k, got %d", m.cursor)
-	}
-
-	// Move up at boundary.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	if m.cursor != 0 {
-		t.Fatalf("expected cursor=0 at boundary, got %d", m.cursor)
-	}
-}
-
-func TestUpdateList_Navigation_ArrowKeys(t *testing.T) {
-	conns := []config.SavedConnection{{Name: "a"}, {Name: "b"}}
-	m := New(conns)
-	m.Show()
-
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	if m.cursor != 1 {
-		t.Fatalf("expected cursor=1 after down, got %d", m.cursor)
-	}
-
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	if m.cursor != 0 {
-		t.Fatalf("expected cursor=0 after up, got %d", m.cursor)
-	}
-}
-
-func TestUpdateList_NewConnection(t *testing.T) {
+func TestConnect_EnterWithDSN(t *testing.T) {
 	m := New(nil)
 	m.Show()
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	if m.state != StateForm {
-		t.Fatalf("expected StateForm after 'n', got %d", m.state)
-	}
-	if m.editing != -1 {
-		t.Fatalf("expected editing=-1 for new connection, got %d", m.editing)
-	}
-}
-
-func TestUpdateList_EditConnection(t *testing.T) {
-	conns := []config.SavedConnection{
-		{Name: "test", Adapter: "sqlite", Host: "localhost"},
-	}
-	m := New(conns)
-	m.Show()
-
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
-	if m.state != StateForm {
-		t.Fatalf("expected StateForm after 'e', got %d", m.state)
-	}
-	if m.editing != 0 {
-		t.Fatalf("expected editing=0, got %d", m.editing)
-	}
-	if m.inputs[fieldName].Value() != "test" {
-		t.Fatalf("expected name field = 'test', got %q", m.inputs[fieldName].Value())
-	}
-}
-
-func TestUpdateList_DeleteConnection(t *testing.T) {
-	conns := []config.SavedConnection{
-		{Name: "a"},
-		{Name: "b"},
-	}
-	m := New(conns)
-	m.Show()
-
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
-	if len(m.connections) != 1 {
-		t.Fatalf("expected 1 connection after delete, got %d", len(m.connections))
-	}
-	if m.connections[0].Name != "b" {
-		t.Fatalf("expected remaining connection 'b', got %q", m.connections[0].Name)
-	}
-}
-
-func TestUpdateList_DeleteLastConnection(t *testing.T) {
-	conns := []config.SavedConnection{{Name: "only"}}
-	m := New(conns)
-	m.Show()
-
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
-	if len(m.connections) != 0 {
-		t.Fatalf("expected 0 connections after delete, got %d", len(m.connections))
-	}
-}
-
-func TestUpdateList_Enter_Connect(t *testing.T) {
-	conns := []config.SavedConnection{
-		{Name: "test", Adapter: "postgres", DSN: "postgres://localhost/test"},
-	}
-	m := New(conns)
-	m.Show()
-
+	m.dsnInput.SetValue("postgres://localhost/test")
 	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if m.Visible() {
-		t.Fatal("expected not visible after enter (connecting)")
+		t.Fatal("expected not visible after enter with DSN")
 	}
 	if cmd == nil {
 		t.Fatal("expected cmd from enter")
@@ -289,38 +182,320 @@ func TestUpdateList_Enter_Connect(t *testing.T) {
 	}
 }
 
-func TestUpdateList_Escape(t *testing.T) {
+func TestConnect_EnterEmptyDSN(t *testing.T) {
+	m := New(nil)
+	m.Show()
+
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.Visible() {
+		t.Fatal("expected still visible when DSN is empty")
+	}
+	if cmd != nil {
+		t.Fatal("expected nil cmd for empty DSN")
+	}
+}
+
+func TestConnect_EnterUnknownDSN(t *testing.T) {
+	m := New(nil)
+	m.Show()
+
+	m.dsnInput.SetValue("unknownformat://whatever")
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.Visible() {
+		t.Fatal("expected still visible for undetectable DSN")
+	}
+	if !m.isError {
+		t.Fatal("expected error message for undetectable DSN")
+	}
+}
+
+func TestConnect_EscapeCloses(t *testing.T) {
 	m := New(nil)
 	m.Show()
 
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
 	if m.Visible() {
-		t.Fatal("expected not visible after escape")
+		t.Fatal("expected not visible after escape from DSN focus")
 	}
 }
 
-func TestUpdateList_Q(t *testing.T) {
+func TestConnect_TabToList(t *testing.T) {
+	conns := []config.SavedConnection{
+		{Name: "a", DSN: "postgres://a"},
+	}
+	m := New(conns)
+	m.Show()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if m.connFocus != focusList {
+		t.Fatalf("expected focusList after tab, got %d", m.connFocus)
+	}
+}
+
+func TestConnect_TabNoSavedConnections(t *testing.T) {
 	m := New(nil)
 	m.Show()
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
-	if m.Visible() {
-		t.Fatal("expected not visible after 'q'")
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if m.connFocus != focusDSN {
+		t.Fatalf("expected to stay on focusDSN with no saved connections, got %d", m.connFocus)
 	}
 }
 
-func TestUpdateForm_Escape(t *testing.T) {
+func TestConnect_TabBackToDSN(t *testing.T) {
+	conns := []config.SavedConnection{{Name: "a", DSN: "postgres://a"}}
+	m := New(conns)
+	m.Show()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if m.connFocus != focusList {
+		t.Fatal("expected focusList after first tab")
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if m.connFocus != focusDSN {
+		t.Fatal("expected focusDSN after second tab")
+	}
+}
+
+func TestConnect_CtrlSOpensForm(t *testing.T) {
+	m := New(nil)
+	m.Show()
+
+	m.dsnInput.SetValue("postgres://localhost/db")
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if m.state != StateForm {
+		t.Fatalf("expected StateForm after Ctrl+S, got %d", m.state)
+	}
+	if m.editing != -1 {
+		t.Fatalf("expected editing=-1 for new, got %d", m.editing)
+	}
+	if m.formDSN.Value() != "postgres://localhost/db" {
+		t.Fatalf("expected formDSN pre-filled, got %q", m.formDSN.Value())
+	}
+}
+
+func TestConnect_CtrlSEmptyDSN(t *testing.T) {
+	m := New(nil)
+	m.Show()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if m.state != StateConnect {
+		t.Fatal("expected to stay in StateConnect with empty DSN")
+	}
+	if !m.isError {
+		t.Fatal("expected error message for empty DSN")
+	}
+}
+
+func TestConnect_CtrlTEmptyDSN(t *testing.T) {
+	m := New(nil)
+	m.Show()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	if m.state != StateConnect {
+		t.Fatal("expected to stay in StateConnect with empty DSN for test")
+	}
+	if !m.isError {
+		t.Fatal("expected error for empty DSN")
+	}
+}
+
+func TestConnect_CtrlTWithDSN(t *testing.T) {
+	m := New(nil)
+	m.Show()
+
+	m.dsnInput.SetValue("postgres://localhost/db")
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	if m.state != StateTesting {
+		t.Fatalf("expected StateTesting, got %d", m.state)
+	}
+	if m.prevState != StateConnect {
+		t.Fatalf("expected prevState=StateConnect, got %d", m.prevState)
+	}
+	if cmd == nil {
+		t.Fatal("expected cmd for test")
+	}
+}
+
+func TestConnect_DSNParsedLive(t *testing.T) {
+	m := New(nil)
+	m.Show()
+
+	m.dsnInput.SetValue("postgres://user@localhost:5432/mydb?sslmode=disable")
+	m.parsed = ParseDSN(m.dsnInput.Value())
+
+	if m.parsed.Adapter != "postgres" {
+		t.Fatalf("expected parsed adapter=postgres, got %q", m.parsed.Adapter)
+	}
+	if m.parsed.Params["sslmode"] != "disable" {
+		t.Fatalf("expected sslmode=disable in parsed params, got %q", m.parsed.Params["sslmode"])
+	}
+}
+
+// --- StateConnect: list focused ---
+
+func TestConnectList_Navigation(t *testing.T) {
+	conns := []config.SavedConnection{
+		{Name: "a", DSN: "postgres://a"},
+		{Name: "b", DSN: "postgres://b"},
+		{Name: "c", DSN: "postgres://c"},
+	}
+	m := New(conns)
+	m.Show()
+	m.connFocus = focusList
+	m.dsnInput.Blur()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if m.cursor != 1 {
+		t.Fatalf("expected cursor=1 after j, got %d", m.cursor)
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if m.cursor != 2 {
+		t.Fatalf("expected cursor=2 after j, got %d", m.cursor)
+	}
+
+	// Should not go past the last item
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if m.cursor != 2 {
+		t.Fatalf("expected cursor=2 at boundary, got %d", m.cursor)
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	if m.cursor != 1 {
+		t.Fatalf("expected cursor=1 after k, got %d", m.cursor)
+	}
+}
+
+func TestConnectList_Enter(t *testing.T) {
+	conns := []config.SavedConnection{
+		{Name: "test", DSN: "postgres://localhost/test"},
+	}
+	m := New(conns)
+	m.Show()
+	m.connFocus = focusList
+	m.dsnInput.Blur()
+
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.Visible() {
+		t.Fatal("expected not visible after enter on saved connection")
+	}
+	if cmd == nil {
+		t.Fatal("expected cmd from enter")
+	}
+	msg := cmd()
+	connMsg, ok := msg.(ConnectRequestMsg)
+	if !ok {
+		t.Fatalf("expected ConnectRequestMsg, got %T", msg)
+	}
+	if connMsg.DSN != "postgres://localhost/test" {
+		t.Fatalf("expected DSN, got %q", connMsg.DSN)
+	}
+}
+
+func TestConnectList_NewConnection(t *testing.T) {
+	conns := []config.SavedConnection{{Name: "a", DSN: "postgres://a"}}
+	m := New(conns)
+	m.Show()
+	m.connFocus = focusList
+	m.dsnInput.Blur()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	if m.state != StateForm {
+		t.Fatalf("expected StateForm after 'n', got %d", m.state)
+	}
+	if m.editing != -1 {
+		t.Fatalf("expected editing=-1 for new, got %d", m.editing)
+	}
+}
+
+func TestConnectList_EditConnection(t *testing.T) {
+	conns := []config.SavedConnection{
+		{Name: "test", DSN: "postgres://localhost/test"},
+	}
+	m := New(conns)
+	m.Show()
+	m.connFocus = focusList
+	m.dsnInput.Blur()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	if m.state != StateForm {
+		t.Fatalf("expected StateForm after 'e', got %d", m.state)
+	}
+	if m.editing != 0 {
+		t.Fatalf("expected editing=0, got %d", m.editing)
+	}
+	if m.nameInput.Value() != "test" {
+		t.Fatalf("expected name='test', got %q", m.nameInput.Value())
+	}
+	if m.formDSN.Value() != "postgres://localhost/test" {
+		t.Fatalf("expected formDSN loaded, got %q", m.formDSN.Value())
+	}
+}
+
+func TestConnectList_DeleteConnection(t *testing.T) {
+	conns := []config.SavedConnection{
+		{Name: "a", DSN: "postgres://a"},
+		{Name: "b", DSN: "postgres://b"},
+	}
+	m := New(conns)
+	m.Show()
+	m.connFocus = focusList
+	m.dsnInput.Blur()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	if len(m.connections) != 1 {
+		t.Fatalf("expected 1 connection after delete, got %d", len(m.connections))
+	}
+	if m.connections[0].Name != "b" {
+		t.Fatalf("expected remaining connection 'b', got %q", m.connections[0].Name)
+	}
+}
+
+func TestConnectList_DeleteLastConnection(t *testing.T) {
+	conns := []config.SavedConnection{{Name: "only", DSN: "postgres://only"}}
+	m := New(conns)
+	m.Show()
+	m.connFocus = focusList
+	m.dsnInput.Blur()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	if len(m.connections) != 0 {
+		t.Fatalf("expected 0 connections after delete, got %d", len(m.connections))
+	}
+}
+
+func TestConnectList_EscapeBackToDSN(t *testing.T) {
+	conns := []config.SavedConnection{{Name: "a", DSN: "postgres://a"}}
+	m := New(conns)
+	m.Show()
+	m.connFocus = focusList
+	m.dsnInput.Blur()
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	if m.connFocus != focusDSN {
+		t.Fatalf("expected focusDSN after escape from list, got %d", m.connFocus)
+	}
+	if !m.Visible() {
+		t.Fatal("expected still visible after escape from list (should return to DSN)")
+	}
+}
+
+// --- StateForm ---
+
+func TestForm_Escape(t *testing.T) {
 	m := New(nil)
 	m.Show()
 	m.state = StateForm
 
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
-	if m.state != StateList {
-		t.Fatalf("expected StateList after escape, got %d", m.state)
+	if m.state != StateConnect {
+		t.Fatalf("expected StateConnect after escape, got %d", m.state)
 	}
 }
 
-func TestUpdateForm_TabNavigation(t *testing.T) {
+func TestForm_TabNavigation(t *testing.T) {
 	m := New(nil)
 	m.Show()
 	m.state = StateForm
@@ -330,9 +505,14 @@ func TestUpdateForm_TabNavigation(t *testing.T) {
 	if m.formFocus != 1 {
 		t.Fatalf("expected formFocus=1 after tab, got %d", m.formFocus)
 	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if m.formFocus != 0 {
+		t.Fatalf("expected formFocus=0 after second tab (wrap), got %d", m.formFocus)
+	}
 }
 
-func TestUpdateForm_ShiftTabNavigation(t *testing.T) {
+func TestForm_ShiftTabNavigation(t *testing.T) {
 	m := New(nil)
 	m.Show()
 	m.state = StateForm
@@ -342,33 +522,24 @@ func TestUpdateForm_ShiftTabNavigation(t *testing.T) {
 	if m.formFocus != 0 {
 		t.Fatalf("expected formFocus=0 after shift+tab, got %d", m.formFocus)
 	}
-}
-
-func TestUpdateForm_ShiftTabWrap(t *testing.T) {
-	m := New(nil)
-	m.Show()
-	m.state = StateForm
-	m.formFocus = 0
 
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	if m.formFocus != fieldCount-1 {
-		t.Fatalf("expected formFocus=%d after shift+tab wrap, got %d", fieldCount-1, m.formFocus)
+	if m.formFocus != 1 {
+		t.Fatalf("expected formFocus=1 after shift+tab wrap, got %d", m.formFocus)
 	}
 }
 
-func TestUpdateForm_SaveNew(t *testing.T) {
+func TestForm_SaveNew(t *testing.T) {
 	m := New(nil)
 	m.Show()
+	m.state = StateForm
+	m.editing = -1
+	m.nameInput.SetValue("new-conn")
+	m.formDSN.SetValue("postgres://localhost/newdb")
 
-	// Enter form for new connection.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	m.inputs[fieldName].SetValue("new-conn")
-	m.inputs[fieldAdapter].SetValue("sqlite")
-
-	// Save with ctrl+s.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
-	if m.state != StateList {
-		t.Fatalf("expected StateList after save, got %d", m.state)
+	if m.state != StateConnect {
+		t.Fatalf("expected StateConnect after save, got %d", m.state)
 	}
 	if len(m.connections) != 1 {
 		t.Fatalf("expected 1 connection after save, got %d", len(m.connections))
@@ -376,18 +547,37 @@ func TestUpdateForm_SaveNew(t *testing.T) {
 	if m.connections[0].Name != "new-conn" {
 		t.Fatalf("expected name 'new-conn', got %q", m.connections[0].Name)
 	}
+	if m.connections[0].DSN != "postgres://localhost/newdb" {
+		t.Fatalf("expected DSN set, got %q", m.connections[0].DSN)
+	}
 }
 
-func TestUpdateForm_SaveEdit(t *testing.T) {
-	conns := []config.SavedConnection{{Name: "old"}}
+func TestForm_SaveRequiresDSN(t *testing.T) {
+	m := New(nil)
+	m.Show()
+	m.state = StateForm
+	m.editing = -1
+	m.nameInput.SetValue("no-dsn")
+	// Leave DSN empty
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if m.state != StateForm {
+		t.Fatalf("expected to stay in StateForm when DSN is empty, got %d", m.state)
+	}
+	if !m.isError {
+		t.Fatal("expected error message when DSN is empty")
+	}
+}
+
+func TestForm_SaveEdit(t *testing.T) {
+	conns := []config.SavedConnection{{Name: "old", DSN: "postgres://old"}}
 	m := New(conns)
 	m.Show()
+	m.state = StateForm
+	m.editing = 0
+	m.nameInput.SetValue("updated")
+	m.formDSN.SetValue("postgres://old")
 
-	// Edit connection.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
-	m.inputs[fieldName].SetValue("updated")
-
-	// Save.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	if len(m.connections) != 1 {
 		t.Fatalf("expected 1 connection after edit save, got %d", len(m.connections))
@@ -397,71 +587,49 @@ func TestUpdateForm_SaveEdit(t *testing.T) {
 	}
 }
 
-func TestUpdate_NotVisible(t *testing.T) {
+func TestForm_CtrlTEmptyDSN(t *testing.T) {
 	m := New(nil)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	if cmd != nil {
-		t.Fatal("expected nil cmd when not visible")
+	m.Show()
+	m.state = StateForm
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	if m.state != StateForm {
+		t.Fatal("expected to stay in StateForm with empty DSN")
+	}
+	if !m.isError {
+		t.Fatal("expected error for empty DSN")
 	}
 }
 
-func TestFormToConnection(t *testing.T) {
+func TestForm_CtrlTWithDSN(t *testing.T) {
 	m := New(nil)
-	m.inputs[fieldName].SetValue("test")
-	m.inputs[fieldAdapter].SetValue("postgres")
-	m.inputs[fieldHost].SetValue("localhost")
-	m.inputs[fieldPort].SetValue("5432")
-	m.inputs[fieldUser].SetValue("admin")
-	m.inputs[fieldPassword].SetValue("secret")
-	m.inputs[fieldDatabase].SetValue("mydb")
-	m.inputs[fieldFile].SetValue("/tmp/test.db")
-	m.inputs[fieldDSN].SetValue("postgres://admin:secret@localhost:5432/mydb")
+	m.Show()
+	m.state = StateForm
+	m.formDSN.SetValue("postgres://localhost/db")
 
-	conn := m.formToConnection()
-	if conn.Name != "test" {
-		t.Fatalf("expected name 'test', got %q", conn.Name)
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	if m.state != StateTesting {
+		t.Fatalf("expected StateTesting, got %d", m.state)
 	}
-	if conn.Port != 5432 {
-		t.Fatalf("expected port 5432, got %d", conn.Port)
+	if m.prevState != StateForm {
+		t.Fatalf("expected prevState=StateForm, got %d", m.prevState)
 	}
-	if conn.Database != "mydb" {
-		t.Fatalf("expected database 'mydb', got %q", conn.Database)
-	}
-	if conn.File != "/tmp/test.db" {
-		t.Fatalf("expected file '/tmp/test.db', got %q", conn.File)
+	if cmd == nil {
+		t.Fatal("expected cmd for test")
 	}
 }
 
-func TestFormToConnection_InvalidPort(t *testing.T) {
-	m := New(nil)
-	m.inputs[fieldPort].SetValue("not-a-number")
-
-	conn := m.formToConnection()
-	if conn.Port != 0 {
-		t.Fatalf("expected port=0 for invalid port, got %d", conn.Port)
-	}
-}
-
-func TestDialogWidth(t *testing.T) {
-	m := New(nil)
-	if w := m.dialogWidth(); w != 60 {
-		t.Fatalf("expected dialogWidth=60, got %d", w)
-	}
-
-	m.width = 50
-	if w := m.dialogWidth(); w != 46 {
-		t.Fatalf("expected dialogWidth=46 for width=50, got %d", w)
-	}
-}
+// --- StateTesting ---
 
 func TestUpdateTesting_Success(t *testing.T) {
 	m := New(nil)
 	m.Show()
 	m.state = StateTesting
+	m.prevState = StateConnect
 
 	m, _ = m.Update(testResultMsg{err: nil})
-	if m.state != StateForm {
-		t.Fatalf("expected StateForm after success, got %d", m.state)
+	if m.state != StateConnect {
+		t.Fatalf("expected StateConnect after success, got %d", m.state)
 	}
 	if m.isError {
 		t.Fatal("expected isError=false for success")
@@ -475,6 +643,7 @@ func TestUpdateTesting_Error(t *testing.T) {
 	m := New(nil)
 	m.Show()
 	m.state = StateTesting
+	m.prevState = StateForm
 
 	m, _ = m.Update(testResultMsg{err: fmt.Errorf("conn refused")})
 	if m.state != StateForm {
@@ -489,76 +658,82 @@ func TestUpdateTesting_Escape(t *testing.T) {
 	m := New(nil)
 	m.Show()
 	m.state = StateTesting
+	m.prevState = StateConnect
 
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
-	if m.state != StateForm {
-		t.Fatalf("expected StateForm after escape in testing, got %d", m.state)
+	if m.state != StateConnect {
+		t.Fatalf("expected StateConnect after escape in testing, got %d", m.state)
 	}
 }
 
-func TestClearForm(t *testing.T) {
+func TestUpdate_NotVisible(t *testing.T) {
 	m := New(nil)
-	m.inputs[fieldName].SetValue("something")
-	m.inputs[fieldAdapter].SetValue("postgres")
-	m.message = "old message"
-
-	m.clearForm()
-
-	if m.inputs[fieldName].Value() != "" {
-		t.Fatalf("expected name cleared, got %q", m.inputs[fieldName].Value())
-	}
-	if m.inputs[fieldAdapter].Value() != "" {
-		t.Fatalf("expected adapter cleared, got %q", m.inputs[fieldAdapter].Value())
-	}
-	if m.formFocus != 0 {
-		t.Fatalf("expected formFocus=0 after clear, got %d", m.formFocus)
-	}
-	if m.message != "" {
-		t.Fatalf("expected message cleared, got %q", m.message)
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatal("expected nil cmd when not visible")
 	}
 }
 
-func TestLoadIntoForm(t *testing.T) {
+func TestDialogWidth(t *testing.T) {
 	m := New(nil)
-	conn := config.SavedConnection{
-		Name:     "mydb",
-		Adapter:  "mysql",
-		Host:     "db.example.com",
-		Port:     3306,
-		User:     "admin",
-		Password: "secret",
-		Database: "production",
-		File:     "/tmp/production.db",
-		DSN:      "mysql://admin:secret@db.example.com:3306/production",
+	if w := m.dialogWidth(); w != 64 {
+		t.Fatalf("expected dialogWidth=64, got %d", w)
 	}
 
-	m.loadIntoForm(conn)
-
-	if m.inputs[fieldName].Value() != "mydb" {
-		t.Fatalf("expected name 'mydb', got %q", m.inputs[fieldName].Value())
-	}
-	if m.inputs[fieldAdapter].Value() != "mysql" {
-		t.Fatalf("expected adapter 'mysql', got %q", m.inputs[fieldAdapter].Value())
-	}
-	if m.inputs[fieldHost].Value() != "db.example.com" {
-		t.Fatalf("expected host 'db.example.com', got %q", m.inputs[fieldHost].Value())
-	}
-	if m.inputs[fieldPort].Value() != "3306" {
-		t.Fatalf("expected port '3306', got %q", m.inputs[fieldPort].Value())
-	}
-	if m.inputs[fieldFile].Value() != "/tmp/production.db" {
-		t.Fatalf("expected file '/tmp/production.db', got %q", m.inputs[fieldFile].Value())
+	m.width = 50
+	if w := m.dialogWidth(); w != 46 {
+		t.Fatalf("expected dialogWidth=46 for width=50, got %d", w)
 	}
 }
 
-func TestLoadIntoForm_ZeroPort(t *testing.T) {
-	m := New(nil)
-	conn := config.SavedConnection{Name: "test", Port: 0}
+func TestTruncateDSN(t *testing.T) {
+	short := "postgres://***@localhost/db"
+	got := truncateDSN("postgres://user:pass@localhost/db", 50)
+	if got != short {
+		t.Fatalf("expected sanitised DSN %q, got %q", short, got)
+	}
 
-	m.loadIntoForm(conn)
+	// After sanitisation, "postgres://***@really-long-host..." is 80+ chars.
+	// truncateDSN should shorten it. The ellipsis is a multi-byte rune so
+	// we check the rune count rather than byte length.
+	long := "postgres://user:pass@really-long-host.example.com:5432/some_database_name?sslmode=disable"
+	got = truncateDSN(long, 50)
+	sanitised := sanitizeError(long)
+	if got == sanitised {
+		t.Fatalf("expected truncation, got full sanitised string: %q", got)
+	}
+}
 
-	// Port 0 should not set the port field.
-	if m.inputs[fieldPort].Value() != "" {
-		t.Fatalf("expected empty port for port=0, got %q", m.inputs[fieldPort].Value())
+func TestSanitizeError(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{
+			"postgres://user:pass@host/db",
+			"postgres://***@host/db",
+		},
+		{
+			"postgresql://admin:secret@host/db",
+			"postgresql://***@host/db",
+		},
+		{
+			"mysql://root:topsecret@host/db",
+			"mysql://***@host/db",
+		},
+		{
+			"password=secret123 host=localhost",
+			"password=*** host=localhost",
+		},
+		{
+			"no credentials here",
+			"no credentials here",
+		},
+	}
+	for _, tt := range tests {
+		got := sanitizeError(tt.input)
+		if got != tt.want {
+			t.Errorf("sanitizeError(%q) = %q, want %q", tt.input, got, tt.want)
+		}
 	}
 }

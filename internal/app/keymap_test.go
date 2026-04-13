@@ -37,8 +37,8 @@ func TestStandardKeyMap(t *testing.T) {
 
 	t.Run("ExecuteQuery has keys", func(t *testing.T) {
 		requireNonEmpty(t, "ExecuteQuery", km.ExecuteQuery)
-		if !containsKey(km.ExecuteQuery, "ctrl+enter") && !containsKey(km.ExecuteQuery, "f5") {
-			t.Error("ExecuteQuery should contain ctrl+enter or f5")
+		if !containsKey(km.ExecuteQuery, "f5") {
+			t.Error("ExecuteQuery should contain f5")
 		}
 	})
 
@@ -91,17 +91,10 @@ func TestStandardKeyMap(t *testing.T) {
 		}
 	})
 
-	t.Run("ToggleKeyMode has f2", func(t *testing.T) {
-		requireNonEmpty(t, "ToggleKeyMode", km.ToggleKeyMode)
-		if !containsKey(km.ToggleKeyMode, "f2") {
-			t.Errorf("ToggleKeyMode keys = %v, want to contain %q", km.ToggleKeyMode.Keys(), "f2")
-		}
-	})
-
-	t.Run("ToggleSidebar has ctrl+b", func(t *testing.T) {
+	t.Run("ToggleSidebar has ctrl+s", func(t *testing.T) {
 		requireNonEmpty(t, "ToggleSidebar", km.ToggleSidebar)
-		if !containsKey(km.ToggleSidebar, "ctrl+b") {
-			t.Errorf("ToggleSidebar keys = %v, want to contain %q", km.ToggleSidebar.Keys(), "ctrl+b")
+		if !containsKey(km.ToggleSidebar, "ctrl+s") {
+			t.Errorf("ToggleSidebar keys = %v, want to contain %q", km.ToggleSidebar.Keys(), "ctrl+s")
 		}
 	})
 
@@ -168,184 +161,6 @@ func TestStandardKeyMap_AllResizeBindingsHaveKeys(t *testing.T) {
 	}
 }
 
-func TestStandardKeyMap_VimBindingsAreEmpty(t *testing.T) {
-	km := StandardKeyMap()
-	// Standard keymap should NOT have vim-specific bindings set
-	vimBindings := map[string]key.Binding{
-		"VimUp":     km.VimUp,
-		"VimDown":   km.VimDown,
-		"VimLeft":   km.VimLeft,
-		"VimRight":  km.VimRight,
-		"VimInsert": km.VimInsert,
-		"VimAppend": km.VimAppend,
-		"VimEscape": km.VimEscape,
-		"VimTop":    km.VimTop,
-		"VimBottom": km.VimBottom,
-		"VimSearch": km.VimSearch,
-		"VimVisual": km.VimVisual,
-		"VimYank":   km.VimYank,
-	}
-	for name, b := range vimBindings {
-		if len(b.Keys()) != 0 {
-			t.Errorf("StandardKeyMap.%s should have no keys, got %v", name, b.Keys())
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// VimKeyMap
-// ---------------------------------------------------------------------------
-
-func TestVimKeyMap(t *testing.T) {
-	km := VimKeyMap()
-
-	t.Run("VimUp has k", func(t *testing.T) {
-		requireNonEmpty(t, "VimUp", km.VimUp)
-		if !containsKey(km.VimUp, "k") {
-			t.Errorf("VimUp keys = %v, want to contain %q", km.VimUp.Keys(), "k")
-		}
-	})
-
-	t.Run("VimDown has j", func(t *testing.T) {
-		requireNonEmpty(t, "VimDown", km.VimDown)
-		if !containsKey(km.VimDown, "j") {
-			t.Errorf("VimDown keys = %v, want to contain %q", km.VimDown.Keys(), "j")
-		}
-	})
-
-	t.Run("VimLeft has h", func(t *testing.T) {
-		requireNonEmpty(t, "VimLeft", km.VimLeft)
-		if !containsKey(km.VimLeft, "h") {
-			t.Errorf("VimLeft keys = %v, want to contain %q", km.VimLeft.Keys(), "h")
-		}
-	})
-
-	t.Run("VimRight has l", func(t *testing.T) {
-		requireNonEmpty(t, "VimRight", km.VimRight)
-		if !containsKey(km.VimRight, "l") {
-			t.Errorf("VimRight keys = %v, want to contain %q", km.VimRight.Keys(), "l")
-		}
-	})
-
-	t.Run("VimInsert has i", func(t *testing.T) {
-		requireNonEmpty(t, "VimInsert", km.VimInsert)
-		if !containsKey(km.VimInsert, "i") {
-			t.Errorf("VimInsert keys = %v, want to contain %q", km.VimInsert.Keys(), "i")
-		}
-	})
-
-	t.Run("VimAppend has a", func(t *testing.T) {
-		requireNonEmpty(t, "VimAppend", km.VimAppend)
-		if !containsKey(km.VimAppend, "a") {
-			t.Errorf("VimAppend keys = %v, want to contain %q", km.VimAppend.Keys(), "a")
-		}
-	})
-
-	t.Run("VimEscape has esc", func(t *testing.T) {
-		requireNonEmpty(t, "VimEscape", km.VimEscape)
-		if !containsKey(km.VimEscape, "esc") {
-			t.Errorf("VimEscape keys = %v, want to contain %q", km.VimEscape.Keys(), "esc")
-		}
-	})
-
-	t.Run("VimTop has g", func(t *testing.T) {
-		requireNonEmpty(t, "VimTop", km.VimTop)
-		if !containsKey(km.VimTop, "g") {
-			t.Errorf("VimTop keys = %v, want to contain %q", km.VimTop.Keys(), "g")
-		}
-	})
-
-	t.Run("VimBottom has G", func(t *testing.T) {
-		requireNonEmpty(t, "VimBottom", km.VimBottom)
-		if !containsKey(km.VimBottom, "G") {
-			t.Errorf("VimBottom keys = %v, want to contain %q", km.VimBottom.Keys(), "G")
-		}
-	})
-
-	t.Run("VimSearch has /", func(t *testing.T) {
-		requireNonEmpty(t, "VimSearch", km.VimSearch)
-		if !containsKey(km.VimSearch, "/") {
-			t.Errorf("VimSearch keys = %v, want to contain %q", km.VimSearch.Keys(), "/")
-		}
-	})
-
-	t.Run("VimVisual has v", func(t *testing.T) {
-		requireNonEmpty(t, "VimVisual", km.VimVisual)
-		if !containsKey(km.VimVisual, "v") {
-			t.Errorf("VimVisual keys = %v, want to contain %q", km.VimVisual.Keys(), "v")
-		}
-	})
-
-	t.Run("VimYank has y", func(t *testing.T) {
-		requireNonEmpty(t, "VimYank", km.VimYank)
-		if !containsKey(km.VimYank, "y") {
-			t.Errorf("VimYank keys = %v, want to contain %q", km.VimYank.Keys(), "y")
-		}
-	})
-}
-
-func TestVimKeyMap_InheritsStandardBindings(t *testing.T) {
-	km := VimKeyMap()
-
-	// VimKeyMap should still have all the standard bindings
-	t.Run("Quit still has ctrl+q", func(t *testing.T) {
-		if !containsKey(km.Quit, "ctrl+q") {
-			t.Errorf("VimKeyMap.Quit keys = %v, want to contain %q", km.Quit.Keys(), "ctrl+q")
-		}
-	})
-
-	t.Run("ExecuteQuery still has keys", func(t *testing.T) {
-		requireNonEmpty(t, "ExecuteQuery", km.ExecuteQuery)
-		if !containsKey(km.ExecuteQuery, "ctrl+enter") && !containsKey(km.ExecuteQuery, "f5") {
-			t.Error("VimKeyMap.ExecuteQuery should contain ctrl+enter or f5")
-		}
-	})
-
-	t.Run("FocusNext still has tab", func(t *testing.T) {
-		if !containsKey(km.FocusNext, "tab") {
-			t.Errorf("VimKeyMap.FocusNext keys = %v, want to contain %q", km.FocusNext.Keys(), "tab")
-		}
-	})
-
-	t.Run("NewTab still has ctrl+t", func(t *testing.T) {
-		if !containsKey(km.NewTab, "ctrl+t") {
-			t.Errorf("VimKeyMap.NewTab keys = %v, want to contain %q", km.NewTab.Keys(), "ctrl+t")
-		}
-	})
-
-	t.Run("CloseTab still has ctrl+w", func(t *testing.T) {
-		if !containsKey(km.CloseTab, "ctrl+w") {
-			t.Errorf("VimKeyMap.CloseTab keys = %v, want to contain %q", km.CloseTab.Keys(), "ctrl+w")
-		}
-	})
-
-	t.Run("Help still has f1", func(t *testing.T) {
-		if !containsKey(km.Help, "f1") {
-			t.Errorf("VimKeyMap.Help keys = %v, want to contain %q", km.Help.Keys(), "f1")
-		}
-	})
-
-	t.Run("ToggleKeyMode still has f2", func(t *testing.T) {
-		if !containsKey(km.ToggleKeyMode, "f2") {
-			t.Errorf("VimKeyMap.ToggleKeyMode keys = %v, want to contain %q", km.ToggleKeyMode.Keys(), "f2")
-		}
-	})
-}
-
-func TestVimKeyMap_DirectFocusBindingsPreserved(t *testing.T) {
-	km := VimKeyMap()
-
-	if !containsKey(km.FocusSidebar, "alt+1") {
-		t.Errorf("VimKeyMap.FocusSidebar keys = %v, want to contain %q", km.FocusSidebar.Keys(), "alt+1")
-	}
-	if !containsKey(km.FocusEditor, "alt+2") {
-		t.Errorf("VimKeyMap.FocusEditor keys = %v, want to contain %q", km.FocusEditor.Keys(), "alt+2")
-	}
-	if !containsKey(km.FocusResults, "alt+3") {
-		t.Errorf("VimKeyMap.FocusResults keys = %v, want to contain %q", km.FocusResults.Keys(), "alt+3")
-	}
-}
-
 // ---------------------------------------------------------------------------
 // ShortHelp
 // ---------------------------------------------------------------------------
@@ -364,20 +179,6 @@ func TestShortHelp(t *testing.T) {
 	for i, b := range short {
 		if len(b.Keys()) == 0 {
 			t.Errorf("ShortHelp()[%d] has no keys", i)
-		}
-	}
-}
-
-func TestShortHelp_VimKeyMap(t *testing.T) {
-	km := VimKeyMap()
-	short := km.ShortHelp()
-	if len(short) == 0 {
-		t.Fatal("VimKeyMap.ShortHelp() returned empty slice")
-	}
-	// VimKeyMap inherits ShortHelp from the same method, should still work
-	for i, b := range short {
-		if len(b.Keys()) == 0 {
-			t.Errorf("VimKeyMap.ShortHelp()[%d] has no keys", i)
 		}
 	}
 }
@@ -410,19 +211,6 @@ func TestFullHelp(t *testing.T) {
 	}
 }
 
-func TestFullHelp_VimKeyMap(t *testing.T) {
-	km := VimKeyMap()
-	full := km.FullHelp()
-	if len(full) == 0 {
-		t.Fatal("VimKeyMap.FullHelp() returned empty slice")
-	}
-	for i, group := range full {
-		if len(group) == 0 {
-			t.Errorf("VimKeyMap.FullHelp()[%d] is empty", i)
-		}
-	}
-}
-
 func TestFullHelp_ContainsAllGroups(t *testing.T) {
 	km := StandardKeyMap()
 	full := km.FullHelp()
@@ -439,9 +227,9 @@ func TestFullHelp_ContainsAllGroups(t *testing.T) {
 	if len(full[2]) != 4 {
 		t.Errorf("FullHelp group 2 (tabs) length = %d, want 4", len(full[2]))
 	}
-	// Group 3: App (ToggleKeyMode, ToggleSidebar, RefreshSchema, OpenConnMgr, History)
-	if len(full[3]) != 5 {
-		t.Errorf("FullHelp group 3 (app) length = %d, want 5", len(full[3]))
+	// Group 3: App (ToggleSidebar, RefreshSchema, OpenConnMgr, History)
+	if len(full[3]) != 4 {
+		t.Errorf("FullHelp group 3 (app) length = %d, want 4", len(full[3]))
 	}
 	// Group 4: Resize (ResizeLeft, ResizeRight, ResizeUp, ResizeDown)
 	if len(full[4]) != 4 {
@@ -474,8 +262,7 @@ func TestStandardKeyMap_SpecificKeyValues(t *testing.T) {
 		{"CloseTab", km.CloseTab, "ctrl+w"},
 		{"Quit", km.Quit, "ctrl+q"},
 		{"Help", km.Help, "f1"},
-		{"ToggleKeyMode", km.ToggleKeyMode, "f2"},
-		{"ToggleSidebar", km.ToggleSidebar, "ctrl+b"},
+		{"ToggleSidebar", km.ToggleSidebar, "ctrl+s"},
 		{"RefreshSchema", km.RefreshSchema, "ctrl+r"},
 		{"OpenConnMgr", km.OpenConnMgr, "ctrl+o"},
 		{"Export", km.Export, "ctrl+e"},
@@ -499,10 +286,7 @@ func TestStandardKeyMap_ExecuteQueryMultipleKeys(t *testing.T) {
 	km := StandardKeyMap()
 	keys := km.ExecuteQuery.Keys()
 	if len(keys) < 2 {
-		t.Errorf("ExecuteQuery should have at least 2 keys (ctrl+enter and f5), got %v", keys)
-	}
-	if !containsKey(km.ExecuteQuery, "ctrl+enter") {
-		t.Errorf("ExecuteQuery missing ctrl+enter, keys = %v", keys)
+		t.Errorf("ExecuteQuery should have at least 2 keys (f5 and ctrl+g), got %v", keys)
 	}
 	if !containsKey(km.ExecuteQuery, "f5") {
 		t.Errorf("ExecuteQuery missing f5, keys = %v", keys)
@@ -518,8 +302,8 @@ func TestStandardKeyMap_NextTabMultipleKeys(t *testing.T) {
 	if !containsKey(km.NextTab, "ctrl+pgdown") {
 		t.Errorf("NextTab missing ctrl+pgdown, keys = %v", keys)
 	}
-	if !containsKey(km.NextTab, "ctrl+]") {
-		t.Errorf("NextTab missing ctrl+], keys = %v", keys)
+	if !containsKey(km.NextTab, "]") {
+		t.Errorf("NextTab missing ], keys = %v", keys)
 	}
 }
 
@@ -532,7 +316,7 @@ func TestStandardKeyMap_PrevTabMultipleKeys(t *testing.T) {
 	if !containsKey(km.PrevTab, "ctrl+pgup") {
 		t.Errorf("PrevTab missing ctrl+pgup, keys = %v", keys)
 	}
-	if !containsKey(km.PrevTab, "ctrl+[") {
-		t.Errorf("PrevTab missing ctrl+[, keys = %v", keys)
+	if !containsKey(km.PrevTab, "[") {
+		t.Errorf("PrevTab missing [, keys = %v", keys)
 	}
 }
