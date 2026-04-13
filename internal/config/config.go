@@ -18,8 +18,8 @@ type Config struct {
 // AuditConfig controls the JSON Lines audit log.
 type AuditConfig struct {
 	Enabled   bool   `json:"enabled"`
-	Path      string `json:"path"`         // empty = ConfigDir()/audit.jsonl
-	MaxSizeMB int    `json:"max_size_mb"`  // 0 = no rotation
+	Path      string `json:"path"`        // empty = ConfigDir()/audit.jsonl
+	MaxSizeMB int    `json:"max_size_mb"` // 0 = no rotation
 }
 
 // EditorConfig holds editor-related settings.

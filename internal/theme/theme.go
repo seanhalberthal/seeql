@@ -39,13 +39,13 @@ type Theme struct {
 	SQLIdentifier lipgloss.Style
 
 	// Results table
-	ResultsBorder      lipgloss.Style
+	ResultsBorder         lipgloss.Style
 	ResultsHeader         lipgloss.Style
 	ResultsHeaderSelected lipgloss.Style
 	ResultsCell           lipgloss.Style
-	ResultsCellAlt     lipgloss.Style
-	ResultsSelectedRow lipgloss.Style
-	ResultsNull        lipgloss.Style
+	ResultsCellAlt        lipgloss.Style
+	ResultsSelectedRow    lipgloss.Style
+	ResultsNull           lipgloss.Style
 
 	// Tab bar
 	TabActive   lipgloss.Style
@@ -82,26 +82,26 @@ type Theme struct {
 // ANSI colour shortcuts using the terminal's 16-colour palette.
 // These inherit the user's theme colours (Dracula, Catppuccin, etc.).
 var (
-	ansiBlack        = lipgloss.Color("0")
-	ansiRed          = lipgloss.Color("1")
-	ansiGreen        = lipgloss.Color("2")
-	ansiYellow       = lipgloss.Color("3")
-	ansiBlue         = lipgloss.Color("4")
-	ansiMagenta      = lipgloss.Color("5")
-	ansiCyan         = lipgloss.Color("6")
-	ansiBrightBlack  = lipgloss.Color("8")
-	ansiBrightRed    = lipgloss.Color("9")
-	ansiBrightGreen  = lipgloss.Color("10")
-	ansiBrightWhite  = lipgloss.Color("15")
+	ansiBlack       = lipgloss.Color("0")
+	ansiRed         = lipgloss.Color("1")
+	ansiGreen       = lipgloss.Color("2")
+	ansiYellow      = lipgloss.Color("3")
+	ansiBlue        = lipgloss.Color("4")
+	ansiMagenta     = lipgloss.Color("5")
+	ansiCyan        = lipgloss.Color("6")
+	ansiBrightBlack = lipgloss.Color("8")
+	ansiBrightRed   = lipgloss.Color("9")
+	ansiBrightGreen = lipgloss.Color("10")
+	ansiBrightWhite = lipgloss.Color("15")
 )
 
 // Adaptive foreground colours — automatically pick the right shade for
 // light vs dark terminal backgrounds.
 var (
-	fgDefault = lipgloss.AdaptiveColor{Light: "0", Dark: "7"}   // text
-	fgMuted   = lipgloss.AdaptiveColor{Light: "8", Dark: "8"}   // dim
-	fgAccent  = lipgloss.AdaptiveColor{Light: "4", Dark: "12"}  // blue accent
-	fgBorder  = lipgloss.AdaptiveColor{Light: "8", Dark: "8"}   // border lines
+	fgDefault = lipgloss.AdaptiveColor{Light: "0", Dark: "7"}  // text
+	fgMuted   = lipgloss.AdaptiveColor{Light: "8", Dark: "8"}  // dim
+	fgAccent  = lipgloss.AdaptiveColor{Light: "4", Dark: "12"} // blue accent
+	fgBorder  = lipgloss.AdaptiveColor{Light: "8", Dark: "8"}  // border lines
 )
 
 // newAdaptiveTheme builds the single adaptive theme. It uses NoColor{}

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/atotto/clipboard"
 	"github.com/mattn/go-runewidth"
 	"github.com/seanhalberthal/seeql/internal/adapter"
 	appmsg "github.com/seanhalberthal/seeql/internal/msg"
@@ -40,19 +40,19 @@ const maxBufferedRows = 5000
 // Model is the results table component. It wraps bubbles/table with support
 // for streaming large result sets via adapter.RowIterator.
 type Model struct {
-	table     table.Model
-	columns   []adapter.ColumnMeta
-	tableCols []table.Column      // computed column definitions for rendering
-	rows      [][]string          // current page of rows in memory
-	allRows   [][]string          // all loaded rows (for non-streaming results)
-	totalRows int64               // total row count (-1 if unknown)
-	offset    int                 // current scroll offset in the full dataset
-	viewTop   int                 // first visible row index for custom rendering
-	pageSize  int                 // rows per page
-	iterator  adapter.RowIterator // for streaming results
-	tabID     int
-	width     int
-	height    int
+	table       table.Model
+	columns     []adapter.ColumnMeta
+	tableCols   []table.Column      // computed column definitions for rendering
+	rows        [][]string          // current page of rows in memory
+	allRows     [][]string          // all loaded rows (for non-streaming results)
+	totalRows   int64               // total row count (-1 if unknown)
+	offset      int                 // current scroll offset in the full dataset
+	viewTop     int                 // first visible row index for custom rendering
+	pageSize    int                 // rows per page
+	iterator    adapter.RowIterator // for streaming results
+	tabID       int
+	width       int
+	height      int
 	focused     bool
 	loading     bool
 	message     string // status message ("INSERT 0 1", etc.)
@@ -676,7 +676,7 @@ func (m *Model) ensureSelectedColVisible() {
 // accounting for the header row (1 line) and its bottom border (1 line).
 func (m Model) visibleDataHeight() int {
 	innerH := m.height - 2 - m.footerLineCount() // border top/bottom + footer
-	h := innerH - 2                               // header + border line
+	h := innerH - 2                              // header + border line
 	if h < 1 {
 		h = 1
 	}

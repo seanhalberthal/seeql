@@ -1,10 +1,10 @@
 <div align="center">
 
 <picture>
-  <img alt="seeql" src=".github/assets/logo.svg" width="280">
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset=".github/assets/logo-light.svg">
+  <img alt="seeql" src=".github/assets/logo-dark.svg" width="380">
 </picture>
-
-<br>
 
 **Terminal SQL client for PostgreSQL, MySQL, and SQLite.**
 
@@ -67,7 +67,6 @@ go install github.com/seanhalberthal/seeql/cmd/seeql@latest
 git clone https://github.com/seanhalberthal/seeql.git
 cd seeql
 make build
-# Binary at bin/seeql
 ```
 
 ---

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"unicode"
 
+	"github.com/sahilm/fuzzy"
 	"github.com/seanhalberthal/seeql/internal/adapter"
 	"github.com/seanhalberthal/seeql/internal/schema"
-	"github.com/sahilm/fuzzy"
 )
 
 // Engine provides SQL autocomplete suggestions based on schema and dialect.

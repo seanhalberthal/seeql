@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 210" fill="none">
+  <style>
+    text {
+      font-family: 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+      font-size: 20px;
+      white-space: pre;
+    }
+  </style>
+  <text x="50%" y="24" text-anchor="middle" fill="#1F6FEB"><![CDATA[  ████████ ████████ ████████   ███████    ██       ]]></text>
+  <text x="50%" y="48" text-anchor="middle" fill="#1F6FEB"><![CDATA[ ██░░░░░░ ░██░░░░░ ░██░░░░░   ██░░░░░██  ░██       ]]></text>
+  <text x="50%" y="72" text-anchor="middle" fill="#1F6FEB"><![CDATA[░██       ░██      ░██       ██     ░░██ ░██       ]]></text>
+  <text x="50%" y="96" text-anchor="middle" fill="#1F6FEB"><![CDATA[░█████████░███████ ░███████ ░██      ░██ ░██       ]]></text>
+  <text x="50%" y="120" text-anchor="middle" fill="#1F6FEB"><![CDATA[░░░░░░░░██░██░░░░  ░██░░░░  ░██    ██░██ ░██       ]]></text>
+  <text x="50%" y="144" text-anchor="middle" fill="#1F6FEB"><![CDATA[       ░██░██      ░██      ░░██  ░░ ██  ░██       ]]></text>
+  <text x="50%" y="168" text-anchor="middle" fill="#1F6FEB"><![CDATA[ ████████ ░████████░████████ ░░███████ ██░████████ ]]></text>
+  <text x="50%" y="192" text-anchor="middle" fill="#1F6FEB"><![CDATA[░░░░░░░░  ░░░░░░░░ ░░░░░░░░   ░░░░░░░ ░░ ░░░░░░░░  ]]></text>
+</svg>

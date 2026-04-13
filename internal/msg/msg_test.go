@@ -332,4 +332,3 @@ func TestOpenHistoryMsg(t *testing.T) {
 	// OpenHistoryMsg has no fields
 	_ = OpenHistoryMsg{}
 }
-
