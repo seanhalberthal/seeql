@@ -128,6 +128,11 @@ func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Mode
 	return m
 }
 
+// SetVersion sets the application version displayed in the status bar.
+func (m *Model) SetVersion(v string) {
+	m.statusbar.SetVersion(v)
+}
+
 // Init initializes the application.
 func (m Model) Init() tea.Cmd {
 	return nil
@@ -184,6 +189,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "up", "down", "enter", "tab", "esc", "ctrl+p", "ctrl+n":
 				var cmd tea.Cmd
 				m.autocomp, cmd = m.autocomp.Update(msg)
+				if cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				return m, tea.Batch(cmds...)
+			}
+		}
+
+		// When the results filter input is active, route keys directly
+		// to the results pane so typed characters aren't intercepted by
+		// global keybindings (e.g. "e" opening the editor, "q" quitting).
+		if m.focusedPane == PaneResults {
+			if ts := m.activeTabState(); ts != nil && ts.Results.Filtering() {
+				var cmd tea.Cmd
+				ts.Results, cmd = ts.Results.Update(msg)
 				if cmd != nil {
 					cmds = append(cmds, cmd)
 				}

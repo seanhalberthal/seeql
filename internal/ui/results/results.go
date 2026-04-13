@@ -62,6 +62,11 @@ type Model struct {
 	colOffset   int // first visible column for horizontal scrolling
 	yankMsg     string
 	yankGen     uint64
+
+	// Column filter
+	filtering  bool   // whether the filter text input is active
+	filterText string // current filter query
+	filterCol  int    // column index being filtered (-1 = none)
 }
 
 // New creates a new results model with sensible defaults.
@@ -86,6 +91,7 @@ func New(tabID int) Model {
 		tabID:     tabID,
 		pageSize:  1000,
 		totalRows: -1,
+		filterCol: -1,
 	}
 }
 
@@ -102,7 +108,52 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Filter input mode — capture all keys.
+		if m.filtering {
+			switch msg.Type {
+			case tea.KeyEscape:
+				m.filtering = false
+				m.filterText = ""
+				m.filterCol = -1
+				m.applyFilter()
+				m.rebuildTableRows()
+				m.table.SetCursor(0)
+				m.viewTop = 0
+			case tea.KeyEnter:
+				m.filtering = false
+				// Keep filter active if there's text.
+				if m.filterText == "" {
+					m.filterCol = -1
+				}
+			case tea.KeyBackspace:
+				if len(m.filterText) > 0 {
+					m.filterText = m.filterText[:len(m.filterText)-1]
+					m.applyFilter()
+					m.rebuildTableRows()
+					m.table.SetCursor(0)
+					m.viewTop = 0
+				}
+			default:
+				if msg.Type == tea.KeyRunes {
+					m.filterText += string(msg.Runes)
+					m.applyFilter()
+					m.rebuildTableRows()
+					m.table.SetCursor(0)
+					m.viewTop = 0
+				}
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
+		case "/":
+			// Enter filter mode on the selected column.
+			if len(m.columns) > 0 && len(m.allRows) > 0 {
+				m.filtering = true
+				m.filterText = ""
+				m.filterCol = m.selectedCol
+			}
+			return m, nil
 		case "h", "left":
 			if m.selectedCol > 0 {
 				m.selectedCol--
@@ -148,6 +199,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				iter := m.iterator
 				return m, fetchPrevPage(iter, m.tabID)
 			}
+		case "esc":
+			// Clear active filter when not in input mode.
+			if m.filterCol >= 0 {
+				m.filterText = ""
+				m.filterCol = -1
+				m.applyFilter()
+				m.rebuildTableRows()
+				m.table.SetCursor(0)
+				m.viewTop = 0
+				return m, nil
+			}
 		}
 
 		// Delegate all other key handling to the underlying table.
@@ -186,10 +248,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.allRows = m.allRows[excess:]
 				m.offset += excess
 			}
-			m.rows = m.allRows
-			m.rebuildTableRows()
+			m.applyFilter()
 			if firstPage {
-				m.table.SetCursor(0)
+				// Recalculate column widths now that we have actual data.
+				m.rebuildTable()
+			} else {
+				m.rebuildTableRows()
 			}
 		} else {
 			m.allRows = append(msg.Rows, m.allRows...)
@@ -201,7 +265,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if len(m.allRows) > maxBufferedRows {
 				m.allRows = m.allRows[:maxBufferedRows]
 			}
-			m.rows = m.allRows
+			m.applyFilter()
 			m.rebuildTableRows()
 		}
 		return m, nil
@@ -289,6 +353,9 @@ func (m *Model) SetResults(result *adapter.QueryResult) {
 	m.totalRows = result.RowCount
 	m.viewTop = 0
 	m.selectedCol = 0
+	m.filtering = false
+	m.filterText = ""
+	m.filterCol = -1
 	if m.totalRows < 0 {
 		m.totalRows = int64(len(result.Rows))
 	}
@@ -429,6 +496,12 @@ func (m Model) Columns() []adapter.ColumnMeta {
 	return m.columns
 }
 
+// Filtering returns true when the filter text input is active and should
+// capture all key input.
+func (m Model) Filtering() bool {
+	return m.filtering
+}
+
 // Rows returns all loaded rows.
 func (m Model) Rows() [][]string {
 	return m.allRows
@@ -464,6 +537,25 @@ func (m *Model) rebuildTableRows() {
 	m.table.SetRows(tableRows)
 }
 
+// applyFilter filters m.allRows into m.rows based on the active filter.
+// If no filter is set, m.rows is set to m.allRows.
+func (m *Model) applyFilter() {
+	if m.filterCol < 0 || m.filterText == "" {
+		m.rows = m.allRows
+		return
+	}
+
+	col := m.filterCol
+	needle := strings.ToLower(m.filterText)
+	var filtered [][]string
+	for _, row := range m.allRows {
+		if col < len(row) && strings.Contains(strings.ToLower(row[col]), needle) {
+			filtered = append(filtered, row)
+		}
+	}
+	m.rows = filtered
+}
+
 // contentWidth returns the usable width inside the border.
 func (m *Model) contentWidth() int {
 	w := m.width - 2 // border left + right
@@ -476,6 +568,9 @@ func (m *Model) contentWidth() int {
 // footerLineCount returns the number of lines the footer will render.
 func (m Model) footerLineCount() int {
 	n := 0
+	if m.filtering || m.filterCol >= 0 {
+		n++ // filter input / active filter
+	}
 	if len(m.columns) > 0 && len(m.rows) > 0 && m.focused {
 		n++ // cell preview
 	}
@@ -714,6 +809,18 @@ func (m Model) buildFooter() string {
 	th := theme.Current
 	var lines []string
 
+	// Filter input or active filter indicator.
+	if m.filtering && m.filterCol >= 0 && m.filterCol < len(m.columns) {
+		colName := m.columns[m.filterCol].Name
+		filterLine := fmt.Sprintf("  / Filter (%s): %s█", colName, m.filterText)
+		lines = append(lines, th.MutedText.Render(filterLine))
+	} else if m.filterCol >= 0 && m.filterCol < len(m.columns) && m.filterText != "" {
+		colName := m.columns[m.filterCol].Name
+		matchCount := len(m.rows)
+		filterLine := fmt.Sprintf("  Filter (%s): %s (%d matches)", colName, m.filterText, matchCount)
+		lines = append(lines, th.MutedText.Render(filterLine))
+	}
+
 	// Cell preview — show the full value of the selected column for the
 	// current row so truncated values can be read.
 	if len(m.columns) > 0 && len(m.rows) > 0 && m.focused {
@@ -752,7 +859,7 @@ func (m Model) buildFooter() string {
 		parts = append(parts, fmt.Sprintf("%d rows loaded", len(m.allRows)))
 	}
 	if m.queryTime > 0 {
-		parts = append(parts, fmt.Sprintf("%s", formatDuration(m.queryTime)))
+		parts = append(parts, formatDuration(m.queryTime))
 	}
 	if m.loading {
 		parts = append(parts, "loading...")
@@ -878,11 +985,12 @@ func autoSizeColumns(cols []adapter.ColumnMeta, rows [][]string, _ int) []table.
 	numCols := len(cols)
 
 	// Start with header lengths as minimum widths.
+	const minColWidth = 10
 	widths := make([]int, numCols)
 	for i, c := range cols {
 		widths[i] = len(c.Name)
-		if widths[i] < 4 {
-			widths[i] = 4 // minimum column width
+		if widths[i] < minColWidth {
+			widths[i] = minColWidth
 		}
 	}
 
