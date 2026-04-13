@@ -1,4 +1,4 @@
-seeql
+/seeql
 bin/
 dist/
 *.exe
@@ -7,3 +7,4 @@ dist/
 *.dylib
 .DS_Store
 .plans/
+/.claude

@@ -784,7 +784,7 @@ func (it *pgRowIterator) Close() error {
 	// Close cursor, rollback transaction, close connection.
 	ctx := context.Background()
 
-	it.tx.Exec(ctx, fmt.Sprintf("CLOSE %s", it.cursorName))
+	_, _ = it.tx.Exec(ctx, fmt.Sprintf("CLOSE %s", it.cursorName))
 	it.tx.Rollback(ctx)
 	err := it.conn.Close(ctx)
 

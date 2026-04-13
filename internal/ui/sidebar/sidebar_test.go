@@ -382,7 +382,9 @@ func TestToggleOrSelect_Table(t *testing.T) {
 	m.cursor = tableIdx
 
 	// Press enter to select the table.
-	m, cmd := m.Update(keyMsg("l"))
+	var cmd tea.Cmd
+	m, cmd = m.Update(keyMsg("l"))
+	_ = cmd
 
 	// The table node has children (columns), so enter should toggle expand.
 	// Since the table node starts collapsed, it should expand.

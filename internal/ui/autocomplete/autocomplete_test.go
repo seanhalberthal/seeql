@@ -294,7 +294,7 @@ func TestUpdate_NotVisible(t *testing.T) {
 	m := New(nil)
 
 	// When not visible, updates should be ignored.
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	if cmd != nil {
 		t.Fatal("expected nil cmd when not visible")
 	}

@@ -668,7 +668,7 @@ func TestUpdateTesting_Escape(t *testing.T) {
 
 func TestUpdate_NotVisible(t *testing.T) {
 	m := New(nil)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	if cmd != nil {
 		t.Fatal("expected nil cmd when not visible")
 	}

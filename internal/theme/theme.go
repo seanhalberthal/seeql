@@ -89,13 +89,9 @@ var (
 	ansiBlue         = lipgloss.Color("4")
 	ansiMagenta      = lipgloss.Color("5")
 	ansiCyan         = lipgloss.Color("6")
-	ansiWhite        = lipgloss.Color("7")
 	ansiBrightBlack  = lipgloss.Color("8")
 	ansiBrightRed    = lipgloss.Color("9")
 	ansiBrightGreen  = lipgloss.Color("10")
-	ansiBrightYellow = lipgloss.Color("11")
-	ansiBrightBlue   = lipgloss.Color("12")
-	ansiBrightCyan   = lipgloss.Color("14")
 	ansiBrightWhite  = lipgloss.Color("15")
 )
 
