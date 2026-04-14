@@ -507,6 +507,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+	case historybrowser.LoadQueryMsg:
+		ts := m.activeTabState()
+		if ts != nil {
+			ts.Editor.SetValue(msg.Query)
+			m.openEditor()
+		}
+
 	case connmgr.ConnectRequestMsg:
 		cmds = append(cmds, m.connect(msg.AdapterName, msg.DSN))
 

@@ -103,6 +103,19 @@ make build
 | `X` | Close tab |
 | `Ctrl+]` / `Ctrl+[` | Next / previous tab |
 
+### History browser
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` (or `↓` / `↑`) | Move cursor |
+| `g` / `G` | Jump to top / bottom |
+| `Ctrl+d` / `Ctrl+u` | Page down / up |
+| `Enter` | Run the selected query |
+| `e` | Load the selected query into the editor and copy to clipboard |
+| `y` | Yank the selected query to the clipboard |
+| `/` | Filter queries (type to narrow, `Enter`/`↓` to return to nav, `Esc` clears) |
+| `Esc` / `q` / `Ctrl+H` | Close |
+
 ---
 
 ## Configuration
