@@ -36,7 +36,7 @@ Bubble Tea (Elm Architecture) TUI. Root model in `internal/app/app.go`.
 
 **Message routing priority in `Update()`:**
 1. `tea.WindowSizeMsg` → recalculate layout
-2. `tea.KeyMsg` → connection manager (if visible, blocks all input) → history browser (if visible, blocks all input) → floating editor (if visible, blocks all input) → help overlay (if visible, blocks all input) → autocomplete (if visible) → global keys → focused pane handler
+2. `tea.KeyMsg` → connection manager (if visible, blocks all input) → history browser (if visible, blocks all input) → cell popover (if visible, blocks all input) → help overlay (if visible, blocks all input) → floating editor (if visible, blocks all input) → autocomplete (if visible) → global keys → focused pane handler
 3. Application messages: Connect, SchemaLoaded, QueryResult, NewTab, etc.
 
 **Focus system:** Two panes (`PaneSidebar`, `PaneResults`). Tab cycles between them. The editor is a floating overlay — when visible (`showEditor`), it captures all keyboard input. `setFocus()` blurs the old pane and focuses the new one.
@@ -183,3 +183,6 @@ Opt-in JSON Lines audit log for compliance. Controlled by `Config.Audit` (`inter
 - **pgtype.Numeric:** pgx v5 returns `pgtype.Numeric` for PostgreSQL numeric/decimal columns. The `valueToString()` function handles this via `val.Value()` — if adding new pgx type conversions, add cases before the `default` fallback.
 - **Help overlay:** Full-screen, blocks all key input when visible. Closed by `?`, `F1`, `Esc`, or `q`.
 - **Schema load warnings:** Introspection errors (per-table or batch) are collected as warnings. If any exist, "Schema loaded with N warnings" appears in the status bar.
+- **bubbles/table column/row ordering:** When swapping in new columns whose count differs from the existing rows, always call `SetRows(nil)` *before* `SetColumns(newCols)`. `SetColumns` internally triggers `UpdateViewport`, which indexes leftover row data against the new column count — calling them in the wrong order panics with `index out of range`. Applies to `results.Model.SetIterator` and `rebuildTable`.
+- **Cell popover (`internal/ui/cellpopover`):** Opened from the results pane via `P` on the selected cell. Auto-pretty-prints JSON, word-wraps long lines (hard-breaks tokens that exceed the dialog width), supports `/` search with `n`/`N` cycling, and `y`/`Y` to yank the displayed/raw value. Receives column name *and* type via `OpenCellPopoverMsg`; type is shown in the title and in the results-pane footer preview.
+- **Sidebar SELECT execute:** `F5` / `Ctrl+G` / `Ctrl+Enter` on a table node sends `ExecuteTableMsg{Query: "SELECT * FROM ..."}`. The handler always replaces the current tab's editor value and executes — no new-tab branching, since the previous concurrent-dispatch design raced and silently no-op'd after the first invocation.
