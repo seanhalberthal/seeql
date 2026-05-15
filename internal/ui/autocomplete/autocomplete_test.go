@@ -82,6 +82,46 @@ func TestTrigger_WithEngine(t *testing.T) {
 	}
 }
 
+func TestTrigger_AfterClosingQuote(t *testing.T) {
+	eng := completion.NewEngine("sqlite")
+	eng.UpdateSchema([]schema.Database{
+		{
+			Name: "main",
+			Schemas: []schema.Schema{
+				{
+					Name: "main",
+					Tables: []schema.Table{
+						{Name: "users", Columns: []schema.Column{{Name: "name", Type: "text"}}},
+					},
+				},
+			},
+		},
+	})
+
+	m := New(eng)
+
+	// Cursor sits right after the closing quote of a string literal.
+	text := "SELECT * FROM users WHERE name = 'sean'"
+	m.Trigger(text, len(text))
+	if m.Visible() {
+		t.Fatal("expected autocomplete to stay hidden right after a closing quote")
+	}
+
+	// Once the user presses space, suggestions should be allowed again.
+	text += " "
+	m.Trigger(text, len(text))
+	if !m.Visible() {
+		t.Fatal("expected autocomplete to trigger after a space following a quoted value")
+	}
+
+	// Same check for double quotes (PostgreSQL-style identifier quoting).
+	m2 := New(eng)
+	m2.Trigger(`SELECT "id"`, len(`SELECT "id"`))
+	if m2.Visible() {
+		t.Fatal(`expected autocomplete to stay hidden right after closing double-quote`)
+	}
+}
+
 func TestTrigger_NoMatches(t *testing.T) {
 	eng := completion.NewEngine("sqlite")
 	// No schema data, so no table/column completions. Only keywords.
