@@ -623,6 +623,9 @@ func TestExecuteStreaming_LargeResultSet(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping large row test in short mode")
 	}
+	if raceEnabled {
+		t.Skip("skipping 1M-row streaming test under -race (5-10x overhead pushes CI past 8 minutes)")
+	}
 
 	conn := openMemory(t)
 	defer conn.Close()

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- CI: skip the 1M-row sqlite streaming test when running under `-race` (the race detector's overhead pushed the job past 8 minutes). Test still runs in full under non-race builds.
+
 ## [0.0.4] - 2026-05-15
 
 ### Added
