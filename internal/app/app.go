@@ -22,6 +22,7 @@ import (
 	"github.com/seanhalberthal/seeql/internal/schema"
 	"github.com/seanhalberthal/seeql/internal/theme"
 	"github.com/seanhalberthal/seeql/internal/ui/autocomplete"
+	"github.com/seanhalberthal/seeql/internal/ui/cellpopover"
 	"github.com/seanhalberthal/seeql/internal/ui/connmgr"
 	"github.com/seanhalberthal/seeql/internal/ui/editor"
 	"github.com/seanhalberthal/seeql/internal/ui/historybrowser"
@@ -58,6 +59,7 @@ type Model struct {
 	statusbar   statusbar.Model
 	connMgr     connmgr.Model
 	histBrowser historybrowser.Model
+	cellPopover cellpopover.Model
 	autocomp    autocomplete.Model
 
 	// Per-tab state
@@ -106,6 +108,7 @@ func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Mode
 		statusbar:   statusbar.New(),
 		connMgr:     connmgr.New(cfg.Connections),
 		histBrowser: historybrowser.New(hist),
+		cellPopover: cellpopover.New(),
 		autocomp:    autocomplete.New(compEngine),
 
 		tabStates:  make(map[int]*TabState),
@@ -164,6 +167,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.histBrowser.Visible() {
 			var cmd tea.Cmd
 			m.histBrowser, cmd = m.histBrowser.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
+		}
+
+		// Cell popover takes priority when visible
+		if m.cellPopover.Visible() {
+			var cmd tea.Cmd
+			m.cellPopover, cmd = m.cellPopover.Update(msg)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -460,6 +473,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateLayout()
 
 	case CloseTabMsg:
+		m.cellPopover.Hide()
 		if m.executing && msg.TabID == m.executingTabID {
 			if m.cancelFunc != nil {
 				m.cancelFunc()
@@ -480,6 +494,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SwitchTabMsg:
 		// Tabs can already be switched by the tab model before this message arrives,
 		// so blur all per-tab panes first, then re-focus the active one.
+		m.cellPopover.Hide()
 		for _, ts := range m.tabStates {
 			ts.Editor.Blur()
 			ts.Results.Blur()
@@ -513,6 +528,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			ts.Editor.SetValue(msg.Query)
 			m.openEditor()
 		}
+
+	case OpenCellPopoverMsg:
+		m.cellPopover.SetSize(m.width, m.height)
+		m.cellPopover.Show(msg.ColumnName, msg.Value)
 
 	case connmgr.ConnectRequestMsg:
 		cmds = append(cmds, m.connect(msg.AdapterName, msg.DSN))
@@ -799,6 +818,13 @@ func (m Model) View() string {
 		return clampViewHeight(centered, m.height)
 	}
 
+	// Cell popover overlay
+	if m.cellPopover.Visible() {
+		popView := m.cellPopover.View()
+		centered := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, popView)
+		return clampViewHeight(centered, m.height)
+	}
+
 	return clampViewHeight(view, m.height)
 }
 
@@ -890,6 +916,9 @@ func (m *Model) updateLayout() {
 
 	// History browser
 	m.histBrowser.SetSize(m.width, m.height)
+
+	// Cell popover
+	m.cellPopover.SetSize(m.width, m.height)
 
 	// Resize components
 	mainHeight := m.height - 3 // tab bar + status bar estimate
@@ -1162,6 +1191,12 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	b.WriteString(line("j / k", "Navigate rows"))
 	b.WriteString("\n")
 	b.WriteString(line("h / l", "Scroll columns"))
+	b.WriteString("\n")
+	b.WriteString(line("P", "Open cell popover (full value)"))
+	b.WriteString("\n")
+	b.WriteString(line("/ (in popover)", "Search within cell value"))
+	b.WriteString("\n")
+	b.WriteString(line("n / N (in popover)", "Next / previous match"))
 	b.WriteString("\n")
 
 	b.WriteString(sectionStyle.Render("  Tabs"))

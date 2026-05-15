@@ -136,3 +136,10 @@ type RefreshSchemaMsg struct{}
 
 // OpenHistoryMsg opens the query history panel.
 type OpenHistoryMsg struct{}
+
+// OpenCellPopoverMsg opens the cell value popover for the focused cell.
+// The results pane emits this when the user presses "P".
+type OpenCellPopoverMsg struct {
+	ColumnName string
+	Value      string
+}

@@ -184,6 +184,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				})
 			}
 			return m, nil
+		case "P":
+			colName, val, ok := m.SelectedCell()
+			if !ok {
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				return appmsg.OpenCellPopoverMsg{ColumnName: colName, Value: val}
+			}
 		case "pgdown":
 			// If we have an iterator and are near the end of loaded rows,
 			// fetch the next page.
@@ -468,6 +476,24 @@ func (m Model) selectedCellValue() string {
 		return m.rows[cursor][col]
 	}
 	return ""
+}
+
+// SelectedCell returns the column name and the string value of the currently
+// highlighted cell. Returns ("", "", false) when no cell is selected (empty
+// result set, no focus, or out-of-bounds cursor).
+func (m Model) SelectedCell() (colName, value string, ok bool) {
+	if len(m.columns) == 0 || len(m.rows) == 0 {
+		return "", "", false
+	}
+	cursor := m.table.Cursor()
+	col := m.selectedCol
+	if col >= len(m.columns) {
+		col = len(m.columns) - 1
+	}
+	if cursor < 0 || cursor >= len(m.rows) || col < 0 || col >= len(m.rows[cursor]) {
+		return "", "", false
+	}
+	return m.columns[col].Name, m.rows[cursor][col], true
 }
 
 // SelectedRow returns the data for the currently selected row, or nil if
