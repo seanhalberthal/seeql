@@ -96,7 +96,7 @@ Two layers with different word-break rules:
 
 **Accepting completions:** The app calls `editor.ReplaceWord(text, prefixLen)` which removes the typed prefix from the end and appends the full completion.
 
-**Suppression:** Autocomplete dismisses after `;` to prevent suggestions on completed statements.
+**Suppression:** Autocomplete dismisses after `;`, `'`, or `"` to prevent suggestions on completed statements or inside/just after string/identifier literals. Resumes once the user types another character (e.g. a space).
 
 ## Results Table & Export
 

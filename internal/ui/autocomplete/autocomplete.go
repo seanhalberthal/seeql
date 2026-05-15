@@ -140,10 +140,12 @@ func (m *Model) Trigger(text string, cursorPos int) {
 		return
 	}
 
-	// Don't trigger after statement-ending semicolons.
+	// Don't auto-trigger right after statement-ending semicolons or after a
+	// quote that closes (or opens) a string/identifier literal. The user has to
+	// type something else (e.g. a space) before suggestions reappear.
 	if cursorPos > 0 && cursorPos <= len(text) {
 		ch := text[cursorPos-1]
-		if ch == ';' {
+		if ch == ';' || ch == '\'' || ch == '"' {
 			m.visible = false
 			return
 		}

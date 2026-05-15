@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
 - Sidebar/results height mismatch caused by variable footer line count
 - Streaming results column sizing — recalculate widths when first data page arrives
 - Minimum column width raised to 10 chars for readability
+- Autocomplete no longer pops up immediately after typing `'` or `"` (e.g. inside `WHERE name = 'sean'`); also restores `?` toggling the help overlay outside the editor
 
 ### Changed
 - DSN-first connection manager flow
