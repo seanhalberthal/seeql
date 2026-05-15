@@ -29,12 +29,6 @@ type (
 	OpenCellPopoverMsg = appmsg.OpenCellPopoverMsg
 )
 
-// executeNewTabMsg is dispatched right after NewTabMsg to execute the query
-// in the newly-created (now-active) tab.
-type executeNewTabMsg struct {
-	Query string
-}
-
 // Re-export constants.
 const (
 	PaneSidebar = appmsg.PaneSidebar

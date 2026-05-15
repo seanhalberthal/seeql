@@ -475,25 +475,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ExecuteTableMsg:
 		tabID := m.tabs.ActiveID()
 		ts := m.tabStates[tabID]
-		if ts != nil && strings.TrimSpace(ts.Editor.Value()) == "" {
+		if ts != nil {
 			ts.Editor.SetValue(msg.Query)
-			query := msg.Query
-			cmds = append(cmds, func() tea.Msg {
-				return ExecuteQueryMsg{Query: query, TabID: tabID}
-			})
-		} else {
-			query := msg.Query
-			cmds = append(cmds, func() tea.Msg {
-				return NewTabMsg{Query: query}
-			})
-			cmds = append(cmds, func() tea.Msg {
-				return executeNewTabMsg{Query: query}
-			})
-		}
-
-	case executeNewTabMsg:
-		tabID := m.tabs.ActiveID()
-		if _, ok := m.tabStates[tabID]; ok {
 			query := msg.Query
 			cmds = append(cmds, func() tea.Msg {
 				return ExecuteQueryMsg{Query: query, TabID: tabID}
@@ -559,7 +542,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case OpenCellPopoverMsg:
 		m.cellPopover.SetSize(m.width, m.height)
-		m.cellPopover.Show(msg.ColumnName, msg.Value)
+		m.cellPopover.Show(msg.ColumnName, msg.ColumnType, msg.Value)
 
 	case connmgr.ConnectRequestMsg:
 		cmds = append(cmds, m.connect(msg.AdapterName, msg.DSN))
@@ -1156,89 +1139,80 @@ func (m *Model) connect(adapterName, dsn string) tea.Cmd {
 
 func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	titleStyle := th.DialogTitle.MarginBottom(1)
-	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3")).MarginTop(1)
+	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3"))
 	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("2"))
 	descStyle := lipgloss.NewStyle()
 
 	line := func(key, desc string) string {
-		return fmt.Sprintf("  %s  %s", keyStyle.Render(fmt.Sprintf("%-16s", key)), descStyle.Render(desc))
+		return fmt.Sprintf("  %s  %s", keyStyle.Render(fmt.Sprintf("%-18s", key)), descStyle.Render(desc))
 	}
+
+	section := func(title string, rows ...[2]string) string {
+		var b strings.Builder
+		b.WriteString(sectionStyle.Render(title))
+		for _, r := range rows {
+			b.WriteString("\n")
+			b.WriteString(line(r[0], r[1]))
+		}
+		return b.String()
+	}
+
+	col := func(sections ...string) string {
+		return strings.Join(sections, "\n\n")
+	}
+
+	left := col(
+		section("  Global",
+			[2]string{"Tab", "Cycle focus: sidebar / results"},
+			[2]string{"e", "Open query editor"},
+			[2]string{"Ctrl+S", "Toggle sidebar"},
+			[2]string{"Ctrl+O", "Connection manager"},
+			[2]string{"Ctrl+R", "Refresh schema"},
+			[2]string{"Ctrl+E", "Export results to CSV"},
+			[2]string{"?", "This help screen"},
+			[2]string{"q / Ctrl+Q", "Quit"},
+		),
+		section("  Layout",
+			[2]string{"Ctrl+←/→", "Resize sidebar"},
+			[2]string{"Ctrl+F", "Toggle sidebar half-width"},
+		),
+		section("  Tabs",
+			[2]string{"Ctrl+T", "New tab"},
+			[2]string{"X", "Close tab"},
+			[2]string{"[ / ]", "Previous / next tab"},
+		),
+	)
+
+	right := col(
+		section("  Editor (floating)",
+			[2]string{"F5 / Ctrl+G / Ctrl+Enter", "Execute query"},
+			[2]string{"Ctrl+C", "Cancel running query"},
+			[2]string{"Ctrl+H", "Query history"},
+			[2]string{"Esc", "Close editor"},
+		),
+		section("  Sidebar",
+			[2]string{"j / k", "Navigate up/down"},
+			[2]string{"l / Enter", "Expand node / load SELECT"},
+			[2]string{"h", "Collapse node"},
+			[2]string{"F5 / Ctrl+G / Ctrl+Enter", "Execute SELECT * for table"},
+		),
+		section("  Results",
+			[2]string{"j / k", "Navigate rows"},
+			[2]string{"h / l", "Scroll columns"},
+			[2]string{"P", "Open cell popover (full value)"},
+			[2]string{"/ (in popover)", "Search within cell value"},
+			[2]string{"n / N (in popover)", "Next / previous match"},
+		),
+	)
+
+	gap := lipgloss.NewStyle().Width(4).Render("")
+	cols := lipgloss.JoinHorizontal(lipgloss.Top, left, gap, right)
 
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("Keyboard Shortcuts"))
 	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Global"))
-	b.WriteString("\n")
-	b.WriteString(line("Tab", "Cycle focus: sidebar / results"))
-	b.WriteString("\n")
-	b.WriteString(line("e", "Open query editor"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+S", "Toggle sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+O", "Connection manager"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+R", "Refresh schema"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+E", "Export results to CSV"))
-	b.WriteString("\n")
-	b.WriteString(line("?", "This help screen"))
-	b.WriteString("\n")
-	b.WriteString(line("q / Ctrl+Q", "Quit"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Editor (floating)"))
-	b.WriteString("\n")
-	b.WriteString(line("F5 / Ctrl+G / Ctrl+Enter", "Execute query"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+C", "Cancel running query"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+H", "Query history"))
-	b.WriteString("\n")
-	b.WriteString(line("Esc", "Close editor"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Layout"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+←/→", "Resize sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+F", "Toggle sidebar half-width"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("j / k", "Navigate up/down"))
-	b.WriteString("\n")
-	b.WriteString(line("l / Enter", "Expand node / load SELECT"))
-	b.WriteString("\n")
-	b.WriteString(line("h", "Collapse node"))
-	b.WriteString("\n")
-	b.WriteString(line("F5 / Ctrl+Enter", "Execute SELECT * for table"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Results"))
-	b.WriteString("\n")
-	b.WriteString(line("j / k", "Navigate rows"))
-	b.WriteString("\n")
-	b.WriteString(line("h / l", "Scroll columns"))
-	b.WriteString("\n")
-	b.WriteString(line("P", "Open cell popover (full value)"))
-	b.WriteString("\n")
-	b.WriteString(line("/ (in popover)", "Search within cell value"))
-	b.WriteString("\n")
-	b.WriteString(line("n / N (in popover)", "Next / previous match"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Tabs"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+T", "New tab"))
-	b.WriteString("\n")
-	b.WriteString(line("X", "Close tab"))
-	b.WriteString("\n")
-	b.WriteString(line("[ / ]", "Previous / next tab"))
-	b.WriteString("\n")
-
-	b.WriteString("\n")
+	b.WriteString(cols)
+	b.WriteString("\n\n")
 	b.WriteString(th.MutedText.Render("  Press ? / F1 / Esc to close"))
 
 	return th.DialogBorder.Render(b.String())

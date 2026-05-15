@@ -148,5 +148,6 @@ type OpenHistoryMsg struct{}
 // The results pane emits this when the user presses "P".
 type OpenCellPopoverMsg struct {
 	ColumnName string
+	ColumnType string
 	Value      string
 }

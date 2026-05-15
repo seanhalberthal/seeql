@@ -93,7 +93,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "enter", "right", "l":
 			return m, m.toggleOrSelect()
-		case "f5", "ctrl+enter":
+		case "f5", "ctrl+g", "ctrl+enter":
 			if query := m.buildSelectQuery(); query != "" {
 				return m, func() tea.Msg {
 					return appmsg.ExecuteTableMsg{Query: query}

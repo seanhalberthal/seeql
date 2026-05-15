@@ -23,6 +23,7 @@ type Model struct {
 	width     int
 	height    int
 	colName   string
+	colType   string   // column type from adapter (e.g. "text", "jsonb", "int4")
 	rawValue  string   // original cell value
 	displayed string   // value as shown (pretty-printed when JSON)
 	pretty    bool     // whether displayed != rawValue
@@ -71,9 +72,10 @@ func (m *Model) SetSize(w, h int) {
 }
 
 // Show opens the popover for the given cell value. Auto-pretty-prints JSON.
-func (m *Model) Show(columnName, value string) {
+func (m *Model) Show(columnName, columnType, value string) {
 	m.visible = true
 	m.colName = columnName
+	m.colType = columnType
 	m.rawValue = value
 	m.displayed, m.pretty = prettyJSON(value)
 	m.offset = 0
@@ -229,7 +231,11 @@ func (m Model) View() string {
 	w, _ := m.dialogSize()
 	innerW := w - 2
 
-	title := th.DialogTitle.Render(fmt.Sprintf("Cell: %s", m.colName))
+	titleText := fmt.Sprintf("Cell: %s", m.colName)
+	title := th.DialogTitle.Render(titleText)
+	if m.colType != "" {
+		title += "  " + th.MutedText.Render(m.colType)
+	}
 
 	var searchLine string
 	switch {
@@ -456,7 +462,9 @@ func prettyJSON(s string) (string, bool) {
 }
 
 // wrapLines splits s into display lines, soft-wrapping any source line wider
-// than width. Uses display-width (runewidth) so multi-byte characters wrap
+// than width. Prefers breaking at whitespace; falls back to a hard
+// character-level break for tokens that don't fit on a single line (e.g. long
+// UUIDs). Uses display-width (runewidth) so multi-byte characters wrap
 // correctly. Tab characters are expanded to two spaces.
 func wrapLines(s string, width int) []string {
 	if width <= 0 {
@@ -469,23 +477,94 @@ func wrapLines(s string, width int) []string {
 			out = append(out, "")
 			continue
 		}
-		var (
-			cur strings.Builder
-			w   int
-		)
-		for _, r := range line {
+		out = append(out, wrapOneLine(line, width)...)
+	}
+	return out
+}
+
+// wrapOneLine word-wraps a single source line. Splits on whitespace runs,
+// preserving them, and starts a new line when the next chunk would overflow.
+// Tokens longer than width are hard-broken at character boundaries.
+func wrapOneLine(line string, width int) []string {
+	tokens := tokenize(line)
+	var (
+		out []string
+		cur strings.Builder
+		w   int
+	)
+	flush := func() {
+		if cur.Len() > 0 {
+			out = append(out, cur.String())
+			cur.Reset()
+			w = 0
+		}
+	}
+	for _, tok := range tokens {
+		tw := runewidth.StringWidth(tok)
+		if isSpace(tok) {
+			if w == 0 {
+				continue
+			}
+			if w+tw > width {
+				flush()
+				continue
+			}
+			cur.WriteString(tok)
+			w += tw
+			continue
+		}
+		if w+tw <= width {
+			cur.WriteString(tok)
+			w += tw
+			continue
+		}
+		flush()
+		if tw <= width {
+			cur.WriteString(tok)
+			w = tw
+			continue
+		}
+		for _, r := range tok {
 			rw := runewidth.RuneWidth(r)
 			if w+rw > width {
-				out = append(out, cur.String())
-				cur.Reset()
-				w = 0
+				flush()
 			}
 			cur.WriteRune(r)
 			w += rw
 		}
-		if cur.Len() > 0 {
-			out = append(out, cur.String())
-		}
+	}
+	flush()
+	if len(out) == 0 {
+		out = append(out, "")
 	}
 	return out
 }
+
+// tokenize splits s into alternating whitespace and non-whitespace runs.
+func tokenize(s string) []string {
+	var out []string
+	var cur strings.Builder
+	curSpace := false
+	for i, r := range s {
+		sp := r == ' '
+		if i == 0 {
+			curSpace = sp
+			cur.WriteRune(r)
+			continue
+		}
+		if sp == curSpace {
+			cur.WriteRune(r)
+			continue
+		}
+		out = append(out, cur.String())
+		cur.Reset()
+		cur.WriteRune(r)
+		curSpace = sp
+	}
+	if cur.Len() > 0 {
+		out = append(out, cur.String())
+	}
+	return out
+}
+
+func isSpace(s string) bool { return len(s) > 0 && s[0] == ' ' }

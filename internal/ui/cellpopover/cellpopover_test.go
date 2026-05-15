@@ -10,7 +10,7 @@ import (
 func sized(value string) Model {
 	m := New()
 	m.SetSize(120, 40)
-	m.Show("col", value)
+	m.Show("col", "", value)
 	return m
 }
 
@@ -51,7 +51,7 @@ func TestShowMakesVisible(t *testing.T) {
 	if m.Visible() {
 		t.Fatal("expected popover hidden after New()")
 	}
-	m.Show("c", "hello")
+	m.Show("c", "", "hello")
 	if !m.Visible() {
 		t.Fatal("expected popover visible after Show()")
 	}
@@ -79,7 +79,7 @@ func TestHideClears(t *testing.T) {
 func TestPrettyPrintJSON(t *testing.T) {
 	m := New()
 	m.SetSize(120, 40)
-	m.Show("col", `{"a":1,"b":[2,3]}`)
+	m.Show("col", "", `{"a":1,"b":[2,3]}`)
 	if !m.pretty {
 		t.Fatalf("expected pretty=true for JSON object, got false; displayed=%q", m.displayed)
 	}
@@ -91,7 +91,7 @@ func TestPrettyPrintJSON(t *testing.T) {
 func TestNonJSONLeavesRaw(t *testing.T) {
 	m := New()
 	m.SetSize(120, 40)
-	m.Show("col", "just a plain string")
+	m.Show("col", "", "just a plain string")
 	if m.pretty {
 		t.Fatal("expected pretty=false for non-JSON")
 	}
@@ -103,7 +103,7 @@ func TestNonJSONLeavesRaw(t *testing.T) {
 func TestMalformedJSONFallback(t *testing.T) {
 	m := New()
 	m.SetSize(120, 40)
-	m.Show("col", `{"a": 1, "b": [`) // truncated, invalid
+	m.Show("col", "", `{"a": 1, "b": [`) // truncated, invalid
 	if m.pretty {
 		t.Fatal("expected pretty=false for malformed JSON")
 	}
@@ -166,6 +166,42 @@ func TestWrapLines(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("line %d: want %q got %q", i, want[i], got[i])
 		}
+	}
+}
+
+func TestWrapLinesBreaksAtWhitespace(t *testing.T) {
+	got := wrapLines("aaa bbb ccc ddd", 7)
+	want := []string{"aaa bbb", "ccc ddd"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d lines, got %d: %#v", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("line %d: want %q got %q", i, want[i], got[i])
+		}
+	}
+}
+
+func TestWrapLinesHardBreaksLongTokens(t *testing.T) {
+	got := wrapLines("aaa verylongtokenwithoutspaces bbb", 8)
+	for _, line := range got {
+		if len(line) > 8 {
+			t.Fatalf("line exceeds width: %q (%d)", line, len(line))
+		}
+	}
+	joined := strings.Join(got, "")
+	if !strings.Contains(joined, "verylongtokenwithoutspaces") {
+		t.Fatalf("long token lost in wrap: %#v", got)
+	}
+}
+
+func TestViewShowsColumnType(t *testing.T) {
+	m := New()
+	m.SetSize(120, 40)
+	m.Show("payload", "jsonb", `{"a":1}`)
+	view := m.View()
+	if !strings.Contains(view, "jsonb") {
+		t.Fatalf("expected view to contain column type 'jsonb', got: %s", view)
 	}
 }
 
