@@ -472,6 +472,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.updateLayout()
 
+	case ExecuteTableMsg:
+		tabID := m.tabs.ActiveID()
+		ts := m.tabStates[tabID]
+		if ts != nil && strings.TrimSpace(ts.Editor.Value()) == "" {
+			ts.Editor.SetValue(msg.Query)
+			query := msg.Query
+			cmds = append(cmds, func() tea.Msg {
+				return ExecuteQueryMsg{Query: query, TabID: tabID}
+			})
+		} else {
+			query := msg.Query
+			cmds = append(cmds, func() tea.Msg {
+				return NewTabMsg{Query: query}
+			})
+			cmds = append(cmds, func() tea.Msg {
+				return executeNewTabMsg{Query: query}
+			})
+		}
+
+	case executeNewTabMsg:
+		tabID := m.tabs.ActiveID()
+		if _, ok := m.tabStates[tabID]; ok {
+			query := msg.Query
+			cmds = append(cmds, func() tea.Msg {
+				return ExecuteQueryMsg{Query: query, TabID: tabID}
+			})
+		}
+
 	case CloseTabMsg:
 		m.cellPopover.Hide()
 		if m.executing && msg.TabID == m.executingTabID {
@@ -1015,7 +1043,7 @@ func (m *Model) handleEditorOverlayKey(msg tea.KeyMsg) tea.Cmd {
 		m.closeEditor()
 		return nil
 
-	case "f5", "ctrl+g":
+	case "f5", "ctrl+g", "ctrl+enter":
 		query := ts.Editor.Value()
 		if query != "" {
 			tabID := m.tabs.ActiveID()
@@ -1161,7 +1189,7 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 
 	b.WriteString(sectionStyle.Render("  Editor (floating)"))
 	b.WriteString("\n")
-	b.WriteString(line("F5 / Ctrl+G", "Execute query"))
+	b.WriteString(line("F5 / Ctrl+G / Ctrl+Enter", "Execute query"))
 	b.WriteString("\n")
 	b.WriteString(line("Ctrl+C", "Cancel running query"))
 	b.WriteString("\n")
@@ -1181,9 +1209,11 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	b.WriteString("\n")
 	b.WriteString(line("j / k", "Navigate up/down"))
 	b.WriteString("\n")
-	b.WriteString(line("l / Enter", "Expand node"))
+	b.WriteString(line("l / Enter", "Expand node / load SELECT"))
 	b.WriteString("\n")
 	b.WriteString(line("h", "Collapse node"))
+	b.WriteString("\n")
+	b.WriteString(line("F5 / Ctrl+Enter", "Execute SELECT * for table"))
 	b.WriteString("\n")
 
 	b.WriteString(sectionStyle.Render("  Results"))

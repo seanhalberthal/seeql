@@ -90,7 +90,7 @@ make build
 
 | Key | Action |
 |-----|--------|
-| `F5` / `Ctrl+G` | Execute query |
+| `F5` / `Ctrl+G` / `Ctrl+Enter` | Execute query |
 | `Ctrl+C` | Cancel running query |
 | `Ctrl+H` | Query history |
 | `Esc` | Close editor |

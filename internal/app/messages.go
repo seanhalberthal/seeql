@@ -19,6 +19,7 @@ type (
 	QueryErrMsg        = appmsg.QueryErrMsg
 	QueryStreamingMsg  = appmsg.QueryStreamingMsg
 	NewTabMsg          = appmsg.NewTabMsg
+	ExecuteTableMsg    = appmsg.ExecuteTableMsg
 	CloseTabMsg        = appmsg.CloseTabMsg
 	SwitchTabMsg       = appmsg.SwitchTabMsg
 	StatusMsg          = appmsg.StatusMsg
@@ -27,6 +28,12 @@ type (
 	ExportErrMsg       = appmsg.ExportErrMsg
 	OpenCellPopoverMsg = appmsg.OpenCellPopoverMsg
 )
+
+// executeNewTabMsg is dispatched right after NewTabMsg to execute the query
+// in the newly-created (now-active) tab.
+type executeNewTabMsg struct {
+	Query string
+}
 
 // Re-export constants.
 const (

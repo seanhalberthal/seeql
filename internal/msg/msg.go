@@ -92,6 +92,13 @@ type NewTabMsg struct {
 	Query string
 }
 
+// ExecuteTableMsg requests executing a SELECT * for the given table. The app
+// chooses whether to reuse the active tab (when its editor is empty) or open
+// a new one.
+type ExecuteTableMsg struct {
+	Query string
+}
+
 // CloseTabMsg requests closing a tab.
 type CloseTabMsg struct {
 	TabID int

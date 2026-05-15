@@ -625,3 +625,140 @@ func TestInit(t *testing.T) {
 		t.Fatal("expected nil cmd from Init")
 	}
 }
+
+func selectTable(t *testing.T, m *Model) {
+	t.Helper()
+	for i, node := range m.flat {
+		if node.Kind == NodeTable {
+			m.cursor = i
+			return
+		}
+	}
+	t.Fatal("no table node found in flat list")
+}
+
+func TestBuildSelectQuery_Table(t *testing.T) {
+	dbs := []schema.Database{{
+		Name: "testdb",
+		Schemas: []schema.Schema{{
+			Name:   "public",
+			Tables: []schema.Table{{Name: "users"}},
+		}},
+	}}
+
+	m := New()
+	m.SetSize(40, 30)
+	m.Focus()
+	m, _ = m.Update(appmsg.SchemaLoadedMsg{Databases: dbs})
+	selectTable(t, &m)
+
+	got := m.buildSelectQuery()
+	want := `SELECT * FROM "public"."users" LIMIT 100;`
+	if got != want {
+		t.Fatalf("buildSelectQuery: want %q, got %q", want, got)
+	}
+}
+
+func TestBuildSelectQuery_MainSchemaOmitsPrefix(t *testing.T) {
+	dbs := []schema.Database{{
+		Name: "testdb",
+		Schemas: []schema.Schema{{
+			Name:   "main",
+			Tables: []schema.Table{{Name: "items"}},
+		}},
+	}}
+
+	m := New()
+	m.SetSize(40, 30)
+	m.Focus()
+	m, _ = m.Update(appmsg.SchemaLoadedMsg{Databases: dbs})
+	selectTable(t, &m)
+
+	got := m.buildSelectQuery()
+	want := `SELECT * FROM "items" LIMIT 100;`
+	if got != want {
+		t.Fatalf("buildSelectQuery: want %q, got %q", want, got)
+	}
+}
+
+func TestBuildSelectQuery_NonTableReturnsEmpty(t *testing.T) {
+	m := New()
+	m.SetSize(40, 30)
+	m.Focus()
+	m, _ = m.Update(appmsg.SchemaLoadedMsg{Databases: singleDBSchema()})
+
+	// Place cursor on the database node.
+	m.cursor = 0
+	if m.flat[m.cursor].Kind != NodeDatabase {
+		t.Fatalf("expected first flat node to be NodeDatabase, got %v", m.flat[m.cursor].Kind)
+	}
+	if got := m.buildSelectQuery(); got != "" {
+		t.Fatalf("expected empty query for non-table node, got %q", got)
+	}
+}
+
+func TestBuildSelectQuery_QuoteEscaping(t *testing.T) {
+	dbs := []schema.Database{{
+		Name: "testdb",
+		Schemas: []schema.Schema{{
+			Name:   "main",
+			Tables: []schema.Table{{Name: `weird"name`}},
+		}},
+	}}
+
+	m := New()
+	m.SetSize(40, 30)
+	m.Focus()
+	m, _ = m.Update(appmsg.SchemaLoadedMsg{Databases: dbs})
+	selectTable(t, &m)
+
+	got := m.buildSelectQuery()
+	want := `SELECT * FROM "weird""name" LIMIT 100;`
+	if got != want {
+		t.Fatalf("buildSelectQuery: want %q, got %q", want, got)
+	}
+}
+
+func TestF5OnTableEmitsExecuteTableMsg(t *testing.T) {
+	dbs := []schema.Database{{
+		Name: "testdb",
+		Schemas: []schema.Schema{{
+			Name:   "public",
+			Tables: []schema.Table{{Name: "orders"}},
+		}},
+	}}
+
+	m := New()
+	m.SetSize(40, 30)
+	m.Focus()
+	m, _ = m.Update(appmsg.SchemaLoadedMsg{Databases: dbs})
+	selectTable(t, &m)
+
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyF5})
+	if cmd == nil {
+		t.Fatal("expected cmd from F5 on table")
+	}
+	msg := cmd()
+	execMsg, ok := msg.(appmsg.ExecuteTableMsg)
+	if !ok {
+		t.Fatalf("expected ExecuteTableMsg, got %T", msg)
+	}
+	want := `SELECT * FROM "public"."orders" LIMIT 100;`
+	if execMsg.Query != want {
+		t.Fatalf("want %q, got %q", want, execMsg.Query)
+	}
+}
+
+func TestF5OnNonTableNoOp(t *testing.T) {
+	m := New()
+	m.SetSize(40, 30)
+	m.Focus()
+	m, _ = m.Update(appmsg.SchemaLoadedMsg{Databases: singleDBSchema()})
+
+	// Cursor on database node (index 0).
+	m.cursor = 0
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyF5})
+	if cmd != nil {
+		t.Fatalf("expected nil cmd when F5 pressed on non-table, got cmd that produced %T", cmd())
+	}
+}

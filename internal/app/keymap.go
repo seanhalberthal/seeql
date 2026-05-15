@@ -78,7 +78,7 @@ func StandardKeyMap() KeyMap {
 			key.WithHelp("[", "prev tab"),
 		),
 		ExecuteQuery: key.NewBinding(
-			key.WithKeys("f5", "ctrl+g"),
+			key.WithKeys("f5", "ctrl+g", "ctrl+enter"),
 			key.WithHelp("f5", "run query"),
 		),
 		CancelQuery: key.NewBinding(

@@ -285,11 +285,10 @@ func TestStandardKeyMap_SpecificKeyValues(t *testing.T) {
 func TestStandardKeyMap_ExecuteQueryMultipleKeys(t *testing.T) {
 	km := StandardKeyMap()
 	keys := km.ExecuteQuery.Keys()
-	if len(keys) < 2 {
-		t.Errorf("ExecuteQuery should have at least 2 keys (f5 and ctrl+g), got %v", keys)
-	}
-	if !containsKey(km.ExecuteQuery, "f5") {
-		t.Errorf("ExecuteQuery missing f5, keys = %v", keys)
+	for _, want := range []string{"f5", "ctrl+g", "ctrl+enter"} {
+		if !containsKey(km.ExecuteQuery, want) {
+			t.Errorf("ExecuteQuery missing %s, keys = %v", want, keys)
+		}
 	}
 }
 
