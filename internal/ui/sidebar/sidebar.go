@@ -93,6 +93,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		case "enter", "right", "l":
 			return m, m.toggleOrSelect()
+		case "f5", "ctrl+g", "ctrl+enter":
+			if query := m.buildSelectQuery(); query != "" {
+				return m, func() tea.Msg {
+					return appmsg.ExecuteTableMsg{Query: query}
+				}
+			}
 		case "left", "h":
 			if m.cursor < len(m.flat) {
 				node := m.flat[m.cursor]
@@ -272,26 +278,35 @@ func (m *Model) toggleOrSelect() tea.Cmd {
 	}
 	node := m.flat[m.cursor]
 
-	// Toggle expand/collapse for parent nodes
 	if len(node.Children) > 0 {
 		node.Expanded = !node.Expanded
 		m.flatten()
 		return nil
 	}
 
-	// For table nodes, generate a SELECT query
-	if node.Kind == NodeTable {
-		tableName := quoteIdentifier(node.Table)
-		if node.Schema != "" && node.Schema != "main" {
-			tableName = quoteIdentifier(node.Schema) + "." + tableName
-		}
-		query := fmt.Sprintf("SELECT * FROM %s LIMIT 100;", tableName)
+	if query := m.buildSelectQuery(); query != "" {
 		return func() tea.Msg {
 			return appmsg.NewTabMsg{Query: query}
 		}
 	}
-
 	return nil
+}
+
+// buildSelectQuery returns "SELECT * FROM <schema>.<table> LIMIT 100;" for
+// the currently-selected node, or "" if the selection isn't a table.
+func (m Model) buildSelectQuery() string {
+	if m.cursor >= len(m.flat) {
+		return ""
+	}
+	node := m.flat[m.cursor]
+	if node.Kind != NodeTable {
+		return ""
+	}
+	tableName := quoteIdentifier(node.Table)
+	if node.Schema != "" && node.Schema != "main" {
+		tableName = quoteIdentifier(node.Schema) + "." + tableName
+	}
+	return fmt.Sprintf("SELECT * FROM %s LIMIT 100;", tableName)
 }
 
 func (m *Model) flatten() {

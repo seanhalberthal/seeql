@@ -184,6 +184,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				})
 			}
 			return m, nil
+		case "P":
+			colName, colType, val, ok := m.selectedCellWithType()
+			if !ok {
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				return appmsg.OpenCellPopoverMsg{ColumnName: colName, ColumnType: colType, Value: val}
+			}
 		case "pgdown":
 			// If we have an iterator and are near the end of loaded rows,
 			// fetch the next page.
@@ -380,9 +388,11 @@ func (m *Model) SetIterator(iter adapter.RowIterator) {
 	m.rows = nil
 
 	// Build column headers immediately so the table structure is visible.
+	// SetRows must precede SetColumns: SetColumns triggers UpdateViewport,
+	// which would otherwise index leftover rows against the new column count.
 	m.tableCols = autoSizeColumns(m.columns, nil, m.contentWidth())
-	m.table.SetColumns(m.tableCols)
 	m.table.SetRows(nil)
+	m.table.SetColumns(m.tableCols)
 }
 
 // SetSize updates the component dimensions and recalculates table layout.
@@ -470,6 +480,41 @@ func (m Model) selectedCellValue() string {
 	return ""
 }
 
+// SelectedCell returns the column name and the string value of the currently
+// highlighted cell. Returns ("", "", false) when no cell is selected (empty
+// result set, no focus, or out-of-bounds cursor).
+func (m Model) SelectedCell() (colName, value string, ok bool) {
+	if len(m.columns) == 0 || len(m.rows) == 0 {
+		return "", "", false
+	}
+	cursor := m.table.Cursor()
+	col := m.selectedCol
+	if col >= len(m.columns) {
+		col = len(m.columns) - 1
+	}
+	if cursor < 0 || cursor >= len(m.rows) || col < 0 || col >= len(m.rows[cursor]) {
+		return "", "", false
+	}
+	return m.columns[col].Name, m.rows[cursor][col], true
+}
+
+// selectedCellWithType returns the column name, column type, and string
+// value of the currently highlighted cell. Same nil-checks as SelectedCell.
+func (m Model) selectedCellWithType() (colName, colType, value string, ok bool) {
+	if len(m.columns) == 0 || len(m.rows) == 0 {
+		return "", "", "", false
+	}
+	cursor := m.table.Cursor()
+	col := m.selectedCol
+	if col >= len(m.columns) {
+		col = len(m.columns) - 1
+	}
+	if cursor < 0 || cursor >= len(m.rows) || col < 0 || col >= len(m.rows[cursor]) {
+		return "", "", "", false
+	}
+	return m.columns[col].Name, m.columns[col].Type, m.rows[cursor][col], true
+}
+
 // SelectedRow returns the data for the currently selected row, or nil if
 // no row is selected.
 func (m Model) SelectedRow() []string {
@@ -523,6 +568,9 @@ func (m *Model) CloseIterator() {
 func (m *Model) rebuildTable() {
 	m.colOffset = 0
 	m.tableCols = autoSizeColumns(m.columns, m.rows, m.contentWidth())
+	// Clear rows before SetColumns to avoid UpdateViewport indexing
+	// leftover rows (from a previous query) against new columns.
+	m.table.SetRows(nil)
 	m.table.SetColumns(m.tableCols)
 	m.rebuildTableRows()
 	m.table.GotoTop()
@@ -830,6 +878,7 @@ func (m Model) buildFooter() string {
 			col = len(m.columns) - 1
 		}
 		colName := m.columns[col].Name
+		colType := m.columns[col].Type
 		val := ""
 		if cursor >= 0 && cursor < len(m.rows) && col < len(m.rows[cursor]) {
 			val = m.rows[cursor][col]
@@ -838,7 +887,11 @@ func (m Model) buildFooter() string {
 			val = "NULL"
 		}
 		maxW := m.contentWidth()
-		preview := fmt.Sprintf("  %s: %s", colName, val)
+		label := colName
+		if colType != "" {
+			label = fmt.Sprintf("%s (%s)", colName, colType)
+		}
+		preview := fmt.Sprintf("  %s: %s", label, val)
 		if runewidth.StringWidth(preview) > maxW && maxW > 4 {
 			preview = runewidth.Truncate(preview, maxW, "...")
 		}

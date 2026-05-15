@@ -90,7 +90,7 @@ make build
 
 | Key | Action |
 |-----|--------|
-| `F5` / `Ctrl+G` | Execute query |
+| `F5` / `Ctrl+G` / `Ctrl+Enter` | Execute query |
 | `Ctrl+C` | Cancel running query |
 | `Ctrl+H` | Query history |
 | `Esc` | Close editor |
@@ -102,6 +102,37 @@ make build
 | `Ctrl+T` | New tab |
 | `X` | Close tab |
 | `Ctrl+]` / `Ctrl+[` | Next / previous tab |
+
+### Sidebar (schema browser)
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` (or `↓` / `↑`) | Navigate up / down |
+| `l` / `Enter` | Expand node / load SELECT into editor |
+| `h` | Collapse node |
+| `g` / `G` | Jump to top / bottom |
+| `F5` / `Ctrl+G` / `Ctrl+Enter` | Execute `SELECT * FROM <table>` in the current tab |
+
+### Results pane
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Navigate rows |
+| `h` / `l` | Scroll columns |
+| `P` | Open cell popover (full value) |
+
+### Cell popover
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` (or `↓` / `↑`) | Scroll one line |
+| `g` / `G` | Jump to top / bottom |
+| `Ctrl+d` / `Ctrl+u` | Page down / up |
+| `/` | Search within cell value |
+| `n` / `N` | Next / previous match |
+| `y` | Yank displayed value to clipboard (pretty-printed when JSON) |
+| `Y` | Yank raw value to clipboard |
+| `Esc` / `q` | Close |
 
 ### History browser
 

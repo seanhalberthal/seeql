@@ -36,7 +36,7 @@ Bubble Tea (Elm Architecture) TUI. Root model in `internal/app/app.go`.
 
 **Message routing priority in `Update()`:**
 1. `tea.WindowSizeMsg` → recalculate layout
-2. `tea.KeyMsg` → connection manager (if visible, blocks all input) → history browser (if visible, blocks all input) → floating editor (if visible, blocks all input) → help overlay (if visible, blocks all input) → autocomplete (if visible) → global keys → focused pane handler
+2. `tea.KeyMsg` → connection manager (if visible, blocks all input) → history browser (if visible, blocks all input) → cell popover (if visible, blocks all input) → help overlay (if visible, blocks all input) → floating editor (if visible, blocks all input) → autocomplete (if visible) → global keys → focused pane handler
 3. Application messages: Connect, SchemaLoaded, QueryResult, NewTab, etc.
 
 **Focus system:** Two panes (`PaneSidebar`, `PaneResults`). Tab cycles between them. The editor is a floating overlay — when visible (`showEditor`), it captures all keyboard input. `setFocus()` blurs the old pane and focuses the new one.
@@ -174,7 +174,7 @@ Opt-in JSON Lines audit log for compliance. Controlled by `Config.Audit` (`inter
 - **Query execution is async:** `tea.Batch()` sends `QueryStartedMsg` immediately, then `QueryResultMsg` or `QueryStreamingMsg` when the goroutine completes. Streaming SELECTs have no timeout; non-streaming queries have a 5-minute timeout.
 - **Nil guards on async handlers:** Always check both `ts != nil` (tab may be closed) and `m.conn != nil` (may be disconnected) before accessing tab state or connection in async message handlers. When `ts == nil`, still clear `m.executing` if `msg.TabID == m.executingTabID`.
 - **Error sanitization:** `sanitizeError()` strips credentials from DSN URLs in error messages (e.g., `postgres://user:pass@` → `postgres://***@`). Applied in `ConnectErrMsg` handler and connmgr test result display. Defined separately in both `internal/app/` and `internal/ui/connmgr/` packages.
-- **No Ctrl+Enter:** Most terminals cannot distinguish Ctrl+Enter from Enter. Execute queries with F5 or Ctrl+G instead.
+- **Execute query keys:** `F5` and `Ctrl+G` work in every terminal. `Ctrl+Enter` is additionally bound but only works in terminals that distinguish it from plain Enter (iTerm2 with "Report modifiers using CSI u" enabled, Kitty, Alacritty, WezTerm, tmux with `extended-keys on`). On Apple Terminal, default gnome-terminal, and basic SSH sessions, `Ctrl+Enter` is indistinguishable from Enter — fall back to `F5` / `Ctrl+G`. Do not rely on `Ctrl+Enter` in tests.
 - **Editor Focus():** Must be called explicitly after creating a new editor — `textarea` defaults to blurred state and silently drops all input when blurred.
 - **Editor InsertText():** Appends at end, not at cursor position (textarea library limitation). `ReplaceWord()` handles autocomplete replacement.
 - **Syntax highlighting:** Chroma tokenization runs on every `View()` call in blurred mode. No caching.
@@ -183,3 +183,6 @@ Opt-in JSON Lines audit log for compliance. Controlled by `Config.Audit` (`inter
 - **pgtype.Numeric:** pgx v5 returns `pgtype.Numeric` for PostgreSQL numeric/decimal columns. The `valueToString()` function handles this via `val.Value()` — if adding new pgx type conversions, add cases before the `default` fallback.
 - **Help overlay:** Full-screen, blocks all key input when visible. Closed by `?`, `F1`, `Esc`, or `q`.
 - **Schema load warnings:** Introspection errors (per-table or batch) are collected as warnings. If any exist, "Schema loaded with N warnings" appears in the status bar.
+- **bubbles/table column/row ordering:** When swapping in new columns whose count differs from the existing rows, always call `SetRows(nil)` *before* `SetColumns(newCols)`. `SetColumns` internally triggers `UpdateViewport`, which indexes leftover row data against the new column count — calling them in the wrong order panics with `index out of range`. Applies to `results.Model.SetIterator` and `rebuildTable`.
+- **Cell popover (`internal/ui/cellpopover`):** Opened from the results pane via `P` on the selected cell. Auto-pretty-prints JSON, word-wraps long lines (hard-breaks tokens that exceed the dialog width), supports `/` search with `n`/`N` cycling, and `y`/`Y` to yank the displayed/raw value. Receives column name *and* type via `OpenCellPopoverMsg`; type is shown in the title and in the results-pane footer preview.
+- **Sidebar SELECT execute:** `F5` / `Ctrl+G` / `Ctrl+Enter` on a table node sends `ExecuteTableMsg{Query: "SELECT * FROM ..."}`. The handler always replaces the current tab's editor value and executes — no new-tab branching, since the previous concurrent-dispatch design raced and silently no-op'd after the first invocation.

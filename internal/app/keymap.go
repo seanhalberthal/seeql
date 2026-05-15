@@ -29,6 +29,7 @@ type KeyMap struct {
 	OpenConnMgr   key.Binding
 	History       key.Binding
 	Export        key.Binding
+	CellPopover   key.Binding
 
 	// Pane resizing
 	ResizeLeft  key.Binding
@@ -77,7 +78,7 @@ func StandardKeyMap() KeyMap {
 			key.WithHelp("[", "prev tab"),
 		),
 		ExecuteQuery: key.NewBinding(
-			key.WithKeys("f5", "ctrl+g"),
+			key.WithKeys("f5", "ctrl+g", "ctrl+enter"),
 			key.WithHelp("f5", "run query"),
 		),
 		CancelQuery: key.NewBinding(
@@ -111,6 +112,10 @@ func StandardKeyMap() KeyMap {
 		Export: key.NewBinding(
 			key.WithKeys("ctrl+e"),
 			key.WithHelp("ctrl+e", "export"),
+		),
+		CellPopover: key.NewBinding(
+			key.WithKeys("P"),
+			key.WithHelp("P", "view cell value"),
 		),
 		ResizeLeft: key.NewBinding(
 			key.WithKeys("ctrl+left"),

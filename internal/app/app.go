@@ -22,6 +22,7 @@ import (
 	"github.com/seanhalberthal/seeql/internal/schema"
 	"github.com/seanhalberthal/seeql/internal/theme"
 	"github.com/seanhalberthal/seeql/internal/ui/autocomplete"
+	"github.com/seanhalberthal/seeql/internal/ui/cellpopover"
 	"github.com/seanhalberthal/seeql/internal/ui/connmgr"
 	"github.com/seanhalberthal/seeql/internal/ui/editor"
 	"github.com/seanhalberthal/seeql/internal/ui/historybrowser"
@@ -58,6 +59,7 @@ type Model struct {
 	statusbar   statusbar.Model
 	connMgr     connmgr.Model
 	histBrowser historybrowser.Model
+	cellPopover cellpopover.Model
 	autocomp    autocomplete.Model
 
 	// Per-tab state
@@ -106,6 +108,7 @@ func New(cfg *config.Config, hist *history.History, auditLog *audit.Logger) Mode
 		statusbar:   statusbar.New(),
 		connMgr:     connmgr.New(cfg.Connections),
 		histBrowser: historybrowser.New(hist),
+		cellPopover: cellpopover.New(),
 		autocomp:    autocomplete.New(compEngine),
 
 		tabStates:  make(map[int]*TabState),
@@ -164,6 +167,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.histBrowser.Visible() {
 			var cmd tea.Cmd
 			m.histBrowser, cmd = m.histBrowser.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
+		}
+
+		// Cell popover takes priority when visible
+		if m.cellPopover.Visible() {
+			var cmd tea.Cmd
+			m.cellPopover, cmd = m.cellPopover.Update(msg)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -459,7 +472,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.updateLayout()
 
+	case ExecuteTableMsg:
+		tabID := m.tabs.ActiveID()
+		ts := m.tabStates[tabID]
+		if ts != nil {
+			ts.Editor.SetValue(msg.Query)
+			query := msg.Query
+			cmds = append(cmds, func() tea.Msg {
+				return ExecuteQueryMsg{Query: query, TabID: tabID}
+			})
+		}
+
 	case CloseTabMsg:
+		m.cellPopover.Hide()
 		if m.executing && msg.TabID == m.executingTabID {
 			if m.cancelFunc != nil {
 				m.cancelFunc()
@@ -480,6 +505,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SwitchTabMsg:
 		// Tabs can already be switched by the tab model before this message arrives,
 		// so blur all per-tab panes first, then re-focus the active one.
+		m.cellPopover.Hide()
 		for _, ts := range m.tabStates {
 			ts.Editor.Blur()
 			ts.Results.Blur()
@@ -513,6 +539,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			ts.Editor.SetValue(msg.Query)
 			m.openEditor()
 		}
+
+	case OpenCellPopoverMsg:
+		m.cellPopover.SetSize(m.width, m.height)
+		m.cellPopover.Show(msg.ColumnName, msg.ColumnType, msg.Value)
 
 	case connmgr.ConnectRequestMsg:
 		cmds = append(cmds, m.connect(msg.AdapterName, msg.DSN))
@@ -799,6 +829,13 @@ func (m Model) View() string {
 		return clampViewHeight(centered, m.height)
 	}
 
+	// Cell popover overlay
+	if m.cellPopover.Visible() {
+		popView := m.cellPopover.View()
+		centered := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, popView)
+		return clampViewHeight(centered, m.height)
+	}
+
 	return clampViewHeight(view, m.height)
 }
 
@@ -890,6 +927,9 @@ func (m *Model) updateLayout() {
 
 	// History browser
 	m.histBrowser.SetSize(m.width, m.height)
+
+	// Cell popover
+	m.cellPopover.SetSize(m.width, m.height)
 
 	// Resize components
 	mainHeight := m.height - 3 // tab bar + status bar estimate
@@ -986,7 +1026,7 @@ func (m *Model) handleEditorOverlayKey(msg tea.KeyMsg) tea.Cmd {
 		m.closeEditor()
 		return nil
 
-	case "f5", "ctrl+g":
+	case "f5", "ctrl+g", "ctrl+enter":
 		query := ts.Editor.Value()
 		if query != "" {
 			tabID := m.tabs.ActiveID()
@@ -1099,81 +1139,80 @@ func (m *Model) connect(adapterName, dsn string) tea.Cmd {
 
 func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	titleStyle := th.DialogTitle.MarginBottom(1)
-	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3")).MarginTop(1)
+	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3"))
 	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("2"))
 	descStyle := lipgloss.NewStyle()
 
 	line := func(key, desc string) string {
-		return fmt.Sprintf("  %s  %s", keyStyle.Render(fmt.Sprintf("%-16s", key)), descStyle.Render(desc))
+		return fmt.Sprintf("  %s  %s", keyStyle.Render(fmt.Sprintf("%-18s", key)), descStyle.Render(desc))
 	}
+
+	section := func(title string, rows ...[2]string) string {
+		var b strings.Builder
+		b.WriteString(sectionStyle.Render(title))
+		for _, r := range rows {
+			b.WriteString("\n")
+			b.WriteString(line(r[0], r[1]))
+		}
+		return b.String()
+	}
+
+	col := func(sections ...string) string {
+		return strings.Join(sections, "\n\n")
+	}
+
+	left := col(
+		section("  Global",
+			[2]string{"Tab", "Cycle focus: sidebar / results"},
+			[2]string{"e", "Open query editor"},
+			[2]string{"Ctrl+S", "Toggle sidebar"},
+			[2]string{"Ctrl+O", "Connection manager"},
+			[2]string{"Ctrl+R", "Refresh schema"},
+			[2]string{"Ctrl+E", "Export results to CSV"},
+			[2]string{"?", "This help screen"},
+			[2]string{"q / Ctrl+Q", "Quit"},
+		),
+		section("  Layout",
+			[2]string{"Ctrl+←/→", "Resize sidebar"},
+			[2]string{"Ctrl+F", "Toggle sidebar half-width"},
+		),
+		section("  Tabs",
+			[2]string{"Ctrl+T", "New tab"},
+			[2]string{"X", "Close tab"},
+			[2]string{"[ / ]", "Previous / next tab"},
+		),
+	)
+
+	right := col(
+		section("  Editor (floating)",
+			[2]string{"F5 / Ctrl+G / Ctrl+Enter", "Execute query"},
+			[2]string{"Ctrl+C", "Cancel running query"},
+			[2]string{"Ctrl+H", "Query history"},
+			[2]string{"Esc", "Close editor"},
+		),
+		section("  Sidebar",
+			[2]string{"j / k", "Navigate up/down"},
+			[2]string{"l / Enter", "Expand node / load SELECT"},
+			[2]string{"h", "Collapse node"},
+			[2]string{"F5 / Ctrl+G / Ctrl+Enter", "Execute SELECT * for table"},
+		),
+		section("  Results",
+			[2]string{"j / k", "Navigate rows"},
+			[2]string{"h / l", "Scroll columns"},
+			[2]string{"P", "Open cell popover (full value)"},
+			[2]string{"/ (in popover)", "Search within cell value"},
+			[2]string{"n / N (in popover)", "Next / previous match"},
+		),
+	)
+
+	gap := lipgloss.NewStyle().Width(4).Render("")
+	cols := lipgloss.JoinHorizontal(lipgloss.Top, left, gap, right)
 
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("Keyboard Shortcuts"))
 	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Global"))
-	b.WriteString("\n")
-	b.WriteString(line("Tab", "Cycle focus: sidebar / results"))
-	b.WriteString("\n")
-	b.WriteString(line("e", "Open query editor"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+S", "Toggle sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+O", "Connection manager"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+R", "Refresh schema"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+E", "Export results to CSV"))
-	b.WriteString("\n")
-	b.WriteString(line("?", "This help screen"))
-	b.WriteString("\n")
-	b.WriteString(line("q / Ctrl+Q", "Quit"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Editor (floating)"))
-	b.WriteString("\n")
-	b.WriteString(line("F5 / Ctrl+G", "Execute query"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+C", "Cancel running query"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+H", "Query history"))
-	b.WriteString("\n")
-	b.WriteString(line("Esc", "Close editor"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Layout"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+←/→", "Resize sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+F", "Toggle sidebar half-width"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Sidebar"))
-	b.WriteString("\n")
-	b.WriteString(line("j / k", "Navigate up/down"))
-	b.WriteString("\n")
-	b.WriteString(line("l / Enter", "Expand node"))
-	b.WriteString("\n")
-	b.WriteString(line("h", "Collapse node"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Results"))
-	b.WriteString("\n")
-	b.WriteString(line("j / k", "Navigate rows"))
-	b.WriteString("\n")
-	b.WriteString(line("h / l", "Scroll columns"))
-	b.WriteString("\n")
-
-	b.WriteString(sectionStyle.Render("  Tabs"))
-	b.WriteString("\n")
-	b.WriteString(line("Ctrl+T", "New tab"))
-	b.WriteString("\n")
-	b.WriteString(line("X", "Close tab"))
-	b.WriteString("\n")
-	b.WriteString(line("[ / ]", "Previous / next tab"))
-	b.WriteString("\n")
-
-	b.WriteString("\n")
+	b.WriteString(cols)
+	b.WriteString("\n\n")
 	b.WriteString(th.MutedText.Render("  Press ? / F1 / Esc to close"))
 
 	return th.DialogBorder.Render(b.String())
