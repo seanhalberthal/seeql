@@ -603,11 +603,7 @@ func (m *Model) handleGlobalKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 
-	case msg.String() == "f1":
-		m.showHelp = !m.showHelp
-		return nil
-
-	case msg.String() == "?" && m.focusedPane != PaneEditor:
+	case msg.String() == "f1" || (msg.String() == "?" && m.focusedPane != PaneEditor):
 		m.showHelp = !m.showHelp
 		return nil
 
@@ -746,10 +742,7 @@ func (m Model) View() string {
 	statusBar := m.statusbar.View()
 
 	// Main content area
-	mainHeight := m.height - lipgloss.Height(tabBar) - lipgloss.Height(statusBar)
-	if mainHeight < 1 {
-		mainHeight = 1
-	}
+	mainHeight := max(m.height-lipgloss.Height(tabBar)-lipgloss.Height(statusBar), 1)
 
 	// Editor + Results
 	// Results fill the full main area
@@ -1054,14 +1047,8 @@ func (m Model) renderEditorOverlay(ts *TabState, mainWidth, mainHeight int) stri
 		editorLines := strings.Split(editorView, "\n")
 
 		// Insert autocomplete below the cursor line (+1 to be after it)
-		insertAt := ts.Editor.CursorLine() + 1
-		if insertAt >= len(editorLines) {
-			insertAt = len(editorLines)
-		}
-		endAt := insertAt + acHeight
-		if endAt > len(editorLines) {
-			endAt = len(editorLines)
-		}
+		insertAt := min(ts.Editor.CursorLine()+1, len(editorLines))
+		endAt := min(insertAt+acHeight, len(editorLines))
 
 		var result []string
 		result = append(result, editorLines[:insertAt]...)
@@ -1121,7 +1108,7 @@ func (m *Model) renderHelpScreen(th *theme.Theme) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("  seeql - Keyboard Shortcuts"))
+	b.WriteString(titleStyle.Render("Keyboard Shortcuts"))
 	b.WriteString("\n")
 
 	b.WriteString(sectionStyle.Render("  Global"))
