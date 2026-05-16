@@ -66,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case "enter", "tab":
+		case "tab":
 			if m.selected < len(m.filtered) {
 				item := m.filtered[m.selected]
 				prefixLen := len(m.prefix)

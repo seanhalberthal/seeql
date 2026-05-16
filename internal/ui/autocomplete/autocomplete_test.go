@@ -206,60 +206,71 @@ func TestUpdate_CtrlNavigation(t *testing.T) {
 	}
 }
 
-func TestUpdate_Enter(t *testing.T) {
-	m := New(nil)
-	m.filtered = []adapter.CompletionItem{
-		{Label: "users", Kind: adapter.CompletionTable},
-		{Label: "orders", Kind: adapter.CompletionTable},
+// TestUpdate_Enter_DoesNotAccept asserts that Enter is *not* an acceptance key
+// for the autocomplete dropdown. Acceptance is Tab-only — Enter is reserved
+// for inserting a newline in the editor and must pass through unconsumed.
+//
+// Regression: previously Enter would accept the highlighted completion even
+// when the user only wanted a newline. Two visible failure modes:
+//
+//   - prefix == highlighted item (e.g. user typed "products" with "products"
+//     highlighted): ReplaceWord swapped the prefix with itself — no visible
+//     change in the buffer — but the Enter was consumed, so the user's
+//     newline silently vanished and the next keystroke continued on the
+//     same line: `FROM products` + Enter + `WHERE` → `productsWHERE`.
+//   - prefix != highlighted item (e.g. typed "c" with "CEIL" highlighted):
+//     `c` was replaced with `CEIL` mid-statement: `customers c JOIN` →
+//     `customers CEILJOIN`.
+//
+// Both variants share one root cause: Enter being listed alongside Tab in the
+// accept switch. This test pins Tab as the sole accept key.
+func TestUpdate_Enter_DoesNotAccept(t *testing.T) {
+	cases := []struct {
+		name   string
+		prefix string
+		label  string
+	}{
+		{"same-prefix variant (productsWHERE bug)", "products", "products"},
+		{"different-prefix variant (CEILJOIN bug)", "c", "CEIL"},
 	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := New(nil)
+			m.filtered = []adapter.CompletionItem{
+				{Label: tc.label, Kind: adapter.CompletionTable},
+			}
+			m.visible = true
+			m.selected = 0
+			m.prefix = tc.prefix
+
+			_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+			if cmd != nil {
+				if msg, ok := cmd().(SelectedMsg); ok {
+					t.Fatalf("Enter must not produce SelectedMsg, got %+v — this is the %q regression", msg, tc.name)
+				}
+				t.Fatalf("Enter must not return a cmd from autocomplete.Update, got %T", cmd())
+			}
+		})
+	}
+}
+
+// TestUpdate_Enter_LeavesVisibilityToCaller asserts that autocomplete.Update
+// does not toggle visibility on Enter. The dismiss-on-Enter policy lives at
+// the app level (so the key can fall through to the editor for newline
+// insertion); the autocomplete component itself stays out of it.
+func TestUpdate_Enter_LeavesVisibilityToCaller(t *testing.T) {
+	m := New(nil)
+	m.filtered = []adapter.CompletionItem{{Label: "users"}}
 	m.visible = true
 	m.selected = 0
 	m.prefix = "us"
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
-	if m.Visible() {
-		t.Fatal("expected not visible after enter")
-	}
-	if cmd == nil {
-		t.Fatal("expected cmd from enter")
-	}
-	msg := cmd()
-	selMsg, ok := msg.(SelectedMsg)
-	if !ok {
-		t.Fatalf("expected SelectedMsg, got %T", msg)
-	}
-	// Full label should be returned along with prefix length.
-	if selMsg.Text != "users" {
-		t.Fatalf("expected 'users', got %q", selMsg.Text)
-	}
-	if selMsg.PrefixLen != 2 {
-		t.Fatalf("expected PrefixLen 2, got %d", selMsg.PrefixLen)
-	}
-}
-
-func TestUpdate_Enter_NoPrefixMatch(t *testing.T) {
-	m := New(nil)
-	m.filtered = []adapter.CompletionItem{
-		{Label: "SELECT", Kind: adapter.CompletionKeyword},
-	}
-	m.visible = true
-	m.selected = 0
-	m.prefix = "xyz"
-
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-
-	if cmd == nil {
-		t.Fatal("expected cmd from enter")
-	}
-	msg := cmd()
-	selMsg := msg.(SelectedMsg)
-	// Full label is always returned; PrefixLen reflects the prefix length.
-	if selMsg.Text != "SELECT" {
-		t.Fatalf("expected 'SELECT', got %q", selMsg.Text)
-	}
-	if selMsg.PrefixLen != 3 {
-		t.Fatalf("expected PrefixLen 3, got %d", selMsg.PrefixLen)
+	if !m.Visible() {
+		t.Fatal("autocomplete.Update(Enter) must not hide the dropdown; the app decides whether to dismiss")
 	}
 }
 

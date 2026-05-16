@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -652,5 +653,72 @@ func TestHLColumnSelection(t *testing.T) {
 	ts = m.activeTabState()
 	if ts.Results.SelectedCol() != 1 {
 		t.Fatalf("after 'h': selectedCol = %d, want 1", ts.Results.SelectedCol())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestEnterInsertsNewlineWhenAutocompleteVisible
+// ---------------------------------------------------------------------------
+
+// TestEnterInsertsNewlineWhenAutocompleteVisible is the user-visible regression
+// test for the autocomplete-eats-Enter bug. The original failure mode: typing
+// `FROM products` then pressing Enter (intending a newline) silently
+// "accepted" the highlighted `products` completion — `ReplaceWord` swapped
+// the prefix with itself, the buffer didn't visibly change, and the Enter
+// was consumed. The next keystroke landed on the same line, producing e.g.
+// `productsWHERE` when the user typed `WHERE` next.
+//
+// After the fix, Enter must:
+//   - insert a newline into the editor buffer; and
+//   - dismiss the autocomplete dropdown.
+//
+// Tab remains the sole acceptance key — covered by the unit tests in
+// internal/ui/autocomplete.
+func TestEnterInsertsNewlineWhenAutocompleteVisible(t *testing.T) {
+	cfg := config.DefaultConfig()
+	m := New(cfg, nil, nil)
+
+	// Layout so the editor overlay has dimensions.
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m = model.(Model)
+
+	// Inject schema so the completion engine returns "products" for a
+	// `FROM <prefix>` query. Without schema we'd be relying on keyword
+	// completions, which is flakier.
+	m.compEngine.UpdateSchema([]schema.Database{
+		{
+			Name: "main",
+			Schemas: []schema.Schema{
+				{
+					Name:   "main",
+					Tables: []schema.Table{{Name: "products"}},
+				},
+			},
+		},
+	})
+	m.autocomp.SetEngine(m.compEngine)
+
+	// Open the floating editor and pre-fill it with the bug-reproducing text.
+	m.openEditor()
+	ts := m.activeTabState()
+	ts.Editor.SetValue("FROM products")
+
+	// Trigger autocomplete the same way the editor would after a keystroke.
+	text := ts.Editor.Value()
+	m.autocomp.Trigger(text, len(text))
+	if !m.autocomp.Visible() {
+		t.Fatal("precondition: autocomplete must be visible after Trigger for 'FROM products'")
+	}
+
+	// Send Enter through the public Update entry point.
+	model, _ = m.Update(keyMsgFromString("enter"))
+	m = model.(Model)
+	ts = m.activeTabState()
+
+	if m.autocomp.Visible() {
+		t.Error("Enter must dismiss the autocomplete dropdown")
+	}
+	if !strings.Contains(ts.Editor.Value(), "\n") {
+		t.Errorf("Enter must insert a newline into the editor — got %q (productsWHERE regression)", ts.Editor.Value())
 	}
 }
