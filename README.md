@@ -1,6 +1,6 @@
 <div align="center">
 
-<img alt="seeql demo" src=".demo/demo.gif" width="760">
+# seeql
 
 **Keyboard driven terminal SQL client for PostgreSQL, MySQL, and SQLite.**
 
@@ -10,6 +10,8 @@
 [![Linux](https://img.shields.io/badge/Linux-supported-6e7681?style=flat&logo=linux&logoColor=white)]()
 
 [Quick Start](#quick-start) · [Features](#features) · [Keybindings](#keybindings) · [Configuration](#configuration)
+
+![seeql demo](.demo/demo.gif)
 
 </div>
 
