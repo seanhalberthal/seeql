@@ -2,7 +2,7 @@
 
 <img alt="seeql demo" src=".demo/demo.gif" width="760">
 
-**Terminal SQL client for PostgreSQL, MySQL, and SQLite.**
+**Keyboard driven terminal SQL client for PostgreSQL, MySQL, and SQLite.**
 
 [![Go 1.25+](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev)
 [![Licence](https://img.shields.io/github/license/seanhalberthal/seeql?style=flat&label=licence&color=4493F8)](LICENCE)
