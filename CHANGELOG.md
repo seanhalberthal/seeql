@@ -4,8 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- README: animated demo gif replaces the static SVG logo.
+- `SEEQL_HIDE_VERSION` environment variable suppresses the version banner — used for clean demo recordings.
+
 ### Changed
 - CI: skip the 1M-row sqlite streaming test when running under `-race` (the race detector's overhead pushed the job past 8 minutes). Test still runs in full under non-race builds.
+- Removed unused static logo assets (`.github/assets/logo-*.svg`, `logo.txt`).
+
+### Fixed
+- Autocomplete no longer accepts the highlighted completion on `Enter` — the key now dismisses the dropdown and inserts a newline. `Tab` remains the sole acceptance key. Previously, pressing Enter after a word that fuzzy-matched a suggestion (e.g. `FROM products` + Enter) silently replaced the prefix with itself and consumed the keystroke, producing artefacts like `productsWHERE` on the next line.
 
 ## [0.0.4] - 2026-05-15
 

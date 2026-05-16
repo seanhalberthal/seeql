@@ -1,10 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset=".github/assets/logo-light.svg">
-  <img alt="seeql" src=".github/assets/logo-dark.svg" width="380">
-</picture>
+<img alt="seeql demo" src=".demo/demo.gif" width="760">
 
 **Terminal SQL client for PostgreSQL, MySQL, and SQLite.**
 
