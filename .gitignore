@@ -8,3 +8,8 @@ dist/
 .DS_Store
 .plans/
 /.claude
+
+# Demo artefacts — only the gif + sources are tracked; the rendered mp4 and
+# the regen-able SQLite db live locally only.
+/.demo/demo.db
+/.demo/demo.mp4

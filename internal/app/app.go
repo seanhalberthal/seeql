@@ -196,16 +196,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.handleEditorOverlayKey(msg)
 		}
 
-		// Autocomplete takes priority when visible
+		// Autocomplete takes priority when visible. Enter is intentionally
+		// excluded — it dismisses the dropdown and falls through to the
+		// focused pane so a newline is inserted (use Tab to accept).
 		if m.autocomp.Visible() {
 			switch msg.String() {
-			case "up", "down", "enter", "tab", "esc", "ctrl+p", "ctrl+n":
+			case "up", "down", "tab", "esc", "ctrl+p", "ctrl+n":
 				var cmd tea.Cmd
 				m.autocomp, cmd = m.autocomp.Update(msg)
 				if cmd != nil {
 					cmds = append(cmds, cmd)
 				}
 				return m, tea.Batch(cmds...)
+			case "enter":
+				m.autocomp.Dismiss()
 			}
 		}
 
@@ -1011,13 +1015,17 @@ func (m *Model) handleEditorOverlayKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	// Autocomplete takes priority when visible
+	// Autocomplete takes priority when visible. Enter is intentionally
+	// excluded — it dismisses the dropdown and falls through to the editor
+	// so a newline is inserted (use Tab to accept).
 	if m.autocomp.Visible() {
 		switch msg.String() {
-		case "up", "down", "enter", "tab", "esc", "ctrl+p", "ctrl+n":
+		case "up", "down", "tab", "esc", "ctrl+p", "ctrl+n":
 			var cmd tea.Cmd
 			m.autocomp, cmd = m.autocomp.Update(msg)
 			return cmd
+		case "enter":
+			m.autocomp.Dismiss()
 		}
 	}
 

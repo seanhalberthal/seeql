@@ -86,7 +86,9 @@ Examples:
 
 			// Create app model
 			model := app.New(cfg, hist, auditLog)
-			model.SetVersion(version)
+			if os.Getenv("SEEQL_HIDE_VERSION") == "" {
+				model.SetVersion(version)
+			}
 
 			// Determine connection method
 			var dsn string
