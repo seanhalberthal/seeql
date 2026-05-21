@@ -2,7 +2,7 @@
 
 # seeql
 
-**Keyboard driven terminal SQL client for PostgreSQL, MySQL, and SQLite.**
+**Keyboard-driven terminal SQL client for PostgreSQL, MySQL, and SQLite.**
 
 [![Go 1.25+](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev)
 [![Licence](https://img.shields.io/github/license/seanhalberthal/seeql?style=flat&label=licence&color=4493F8)](LICENCE)
@@ -33,15 +33,15 @@ seeql ./data.db                          # SQLite file
 
 ## Features
 
-- **Two-pane layout** — sidebar + results table. Query editor floats on demand.
-- **Terminal-native theme** — inherits your terminal's colour scheme. No hardcoded colours.
-- **Streaming results** — constant memory for arbitrarily large result sets.
-- **Context-aware autocomplete** — tables, columns, keywords, functions.
-- **Multi-tab** — each tab owns its result set and query.
-- **Connection manager** — DSN-based, adapter auto-detected.
-- **Query history** — SQLite-backed, searchable via Ctrl+H.
-- **Audit log** — opt-in JSON Lines trail for compliance.
-- **Pure Go** — zero CGo, cross-platform, instant startup.
+- **Two-pane layout** with sidebar and results table; the query editor floats on demand
+- **Terminal-native theme** that inherits your terminal's colour scheme, with no hardcoded colours
+- **Streaming results** with constant memory regardless of result-set size
+- **Context-aware autocomplete** for tables, columns, keywords, and functions
+- **Multi-tab** with per-tab result sets and queries
+- **Connection manager** with DSN-based connections; the adapter is auto-detected from the URL scheme
+- **Query history** stored in SQLite, searchable via `Ctrl+H`
+- **Audit log** as an opt-in JSON Lines trail
+- **Pure Go** with zero CGo dependencies and instant startup
 
 ---
 
